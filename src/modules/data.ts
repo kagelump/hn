@@ -87,7 +87,8 @@ function updateLocalData(): void {
     if (!item.user) {
       item.user = '';
     }
-    item.title = item.title.replace('<', '&lt;');
+    // Escape HTML in title to prevent XSS
+    item.title = item.title.replace(/</g, '&lt;').replace(/>/g, '&gt;');
     localData.articles[item.id] = item;
   });
 }

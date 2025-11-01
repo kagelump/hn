@@ -1,7 +1,7 @@
 // Application configuration
-import type { AppConfig } from './types/index.js';
+import type { AppConfig } from './types/index';
 import Cookies from 'js-cookie';
-import { store } from './utils/storage.js';
+import { store } from './utils/storage';
 
 // Generate unique ID
 function generateHnid(): string {

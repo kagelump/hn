@@ -1,5 +1,5 @@
 // Data module for fetching and caching HN data
-import type { HNItem, HNComment, VisitedData, LocalData } from '../types';
+import type { HNItem, HNComment, VisitedData, VisitedItem, LocalData } from '../types';
 import { config } from '../config';
 import { store } from '../utils/storage';
 import { template } from '../utils/template';
@@ -144,16 +144,23 @@ function saveVisitedData(): void {
   saveVisitedId = window.setTimeout(saveVisitedDelayed, 1000);
 }
 
-function addVisited(id: number, type: 'a' | 'c'): void {
+// Helper function to get or create visited item
+function getVisitedItem(id: number): VisitedItem {
   const idStr = String(id);
-  const item = visitedData[idStr];
-  if (!item || typeof item !== 'object' || !('a' in item)) {
-    visitedData[idStr] = {};
+  const existing = visitedData[idStr];
+  
+  if (!existing || typeof existing !== 'object' || !('a' in existing)) {
+    const newItem: VisitedItem = {};
+    visitedData[idStr] = newItem;
+    return newItem;
   }
-  const visitItem = visitedData[idStr];
-  if (visitItem && typeof visitItem === 'object' && 'a' in visitItem) {
-    visitItem[type] = Date.now();
-  }
+  
+  return existing as VisitedItem;
+}
+
+function addVisited(id: number, type: 'a' | 'c'): void {
+  const item = getVisitedItem(id);
+  item[type] = Date.now();
   saveVisitedData();
 }
 
@@ -252,11 +259,9 @@ export async function getArticleComments(id: number, callback?: (data: HNItem) =
       delete updatedArticle.url;
     }
     
-    if (visitedData[id] && typeof visitedData[id] === 'object' && visitedData[id]?.lastReadComment) {
-      const visitItem = visitedData[id];
-      if (visitItem && typeof visitItem === 'object' && 'lastReadComment' in visitItem) {
-        updatedArticle.lastReadComment = visitItem.lastReadComment;
-      }
+    const visitItem = visitedData[id];
+    if (visitItem && typeof visitItem === 'object' && 'lastReadComment' in visitItem) {
+      updatedArticle.lastReadComment = (visitItem as VisitedItem).lastReadComment;
     }
     
     updatedArticle.commentsFetchTime = Date.now();
@@ -283,17 +288,10 @@ export async function getArticleComments(id: number, callback?: (data: HNItem) =
       };
       
       const lastId = getLastCommentId(updatedArticle.comments as HNComment[]);
-      const idStr = String(id);
       if (lastId) {
-        const item = visitedData[idStr];
-        if (!item || typeof item !== 'object' || !('a' in item)) {
-          visitedData[idStr] = {};
-        }
-        const visitItem = visitedData[idStr];
-        if (visitItem && typeof visitItem === 'object' && 'lastReadComment' in visitItem) {
-          visitItem.lastReadComment = lastId;
-          saveVisitedData();
-        }
+        const item = getVisitedItem(id);
+        item.lastReadComment = lastId;
+        saveVisitedData();
       }
     }, 300);
   } catch (error) {

@@ -25,5 +25,8 @@ export function prerender(tmpl: string): (data: Record<string, unknown>) => stri
     (_tag, key) => `' + ( data.${key} || '' ) + '`
   );
 
+  // Note: Using Function constructor for template compilation.
+  // This is safe because templates come from trusted HTML templates in the page,
+  // not from user input. Data passed to the template is escaped.
   return new Function('data', `return '${functionBody}';`) as (data: Record<string, unknown>) => string;
 }

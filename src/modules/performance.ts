@@ -6,18 +6,20 @@ class PerformanceTracker {
     insertedNodeCount: 0
   };
 
-  update(id: string, type: string | Record<string, string | number>, time?: number): void {
+  update(id: string, type: string, time: number): void;
+  update(id: string, data: Record<string, string | number>): void;
+  update(id: string, typeOrData: string | Record<string, string | number>, time?: number): void {
     if (!this.perfData[id]) {
       this.perfData[id] = {};
     }
 
-    if (arguments.length === 2 && typeof type === 'object') {
-      this.perfData[id] = type;
-    } else if (typeof type === 'string' && time !== undefined) {
+    if (typeof typeOrData === 'object') {
+      this.perfData[id] = typeOrData;
+    } else if (typeof typeOrData === 'string' && time !== undefined) {
       const current = this.perfData[id];
       if (typeof current === 'object' && current !== null) {
-        const existing = current[type];
-        current[type] = existing ? `${existing},${time}` : String(time);
+        const existing = current[typeOrData];
+        current[typeOrData] = existing ? `${existing},${time}` : String(time);
       }
     }
   }

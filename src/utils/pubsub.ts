@@ -1,5 +1,5 @@
 // Simple PubSub implementation
-type Callback = (...args: any[]) => void;
+type Callback = (...args: unknown[]) => void;
 
 class PubSubService {
   private subscribers: Map<string, Callback[]> = new Map();
@@ -11,7 +11,7 @@ class PubSubService {
     this.subscribers.get(event)!.push(callback);
   }
 
-  publish(event: string, ...args: any[]): void {
+  publish(event: string, ...args: unknown[]): void {
     const callbacks = this.subscribers.get(event);
     if (callbacks) {
       callbacks.forEach(callback => callback(...args));

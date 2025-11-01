@@ -67,5 +67,5 @@ export interface PerformanceData {
 export interface LocalData {
   list?: HNItem[];
   articles: Record<number, HNItem>;
-  [key: string]: any;
+  [key: string]: unknown;
 }

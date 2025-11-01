@@ -6,7 +6,7 @@ class PerformanceTracker {
     insertedNodeCount: 0
   };
 
-  update(id: string, type: string | Record<string, any>, time?: number): void {
+  update(id: string, type: string | Record<string, string | number>, time?: number): void {
     if (!this.perfData[id]) {
       this.perfData[id] = {};
     }

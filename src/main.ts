@@ -1,4 +1,5 @@
 // Main application entry point
+import './styles/glyph.css';
 import './styles/normalize.css';
 import './styles/common.css';
 import './styles/pages.css';
@@ -108,7 +109,7 @@ function initHomePage(): void {
           item.urlTitle = '';
         }
         item.text = item.text || '';
-        return item.id ? listItemRender(item) : '';
+        return item.id ? listItemRender(item as unknown as Record<string, unknown>) : '';
       }).join('');
 
       loading.hide();

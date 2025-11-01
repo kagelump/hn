@@ -14,8 +14,8 @@ const URL_TEMPLATES = {
   top10ByDate: 'https://api.thriftdb.com/api.hnsearch.com/items/_search?filter[fields][type][]=submission&sortby=points+desc&filter[fields][create_ts][]=[{startDate}+TO+{endDate}]&limit=10'
 };
 
-let primaryServer = config.url.stories;
-let backupServer = config.url.storiesBackup || config.url.stories;
+const primaryServer = config.url.stories;
+const backupServer = config.url.storiesBackup || config.url.stories;
 let currentServer = primaryServer;
 let lastServerChangeTime: number | undefined;
 

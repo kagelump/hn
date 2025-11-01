@@ -27,7 +27,7 @@ export const config: AppConfig = {
   iScrollEnable: false,
   apikey: 'localhost.com',
   url: {
-    stories: 'http://ng.premii.com:8080',
+    stories: 'http://localhost:8080',
     share: 'http://hn.premii.com',
     readability: 'a/read/sample.txt'
   },

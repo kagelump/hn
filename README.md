@@ -1,41 +1,102 @@
-Hacker News mobile app
-==
+# Hacker News Reader
 
-#### Web: http://hn.premii.com
-#### iOS: https://itunes.apple.com/us/app/hacker-news-yc/id713733435
-#### Android: https://play.google.com/store/apps/details?id=com.premii.hn
+A modern, multiplatform JavaScript webapp for reading Hacker News.
 
-### lib.js contains
+## Features
 
-* Zepto
-* Fastclick
-* jQuery.cookie plugin
-* PubSub
-* localstorage wrapper
+- Browse Hacker News front page
+- Read articles and comments
+- Filter by Ask HN, Show HN, and Top posts
+- Dark theme support
+- Offline caching
+- Mobile-friendly responsive design
 
-### Data source (index.htm).
+## Development
 
-<code>
-"url" : {
-    "stories" : "http://ng.premii.com:8080",
-    "readability": "http://localhost/a/read/sample.txt"
+This project has been modernized with:
+- **TypeScript** for type safety
+- **Vite** for fast builds and hot module replacement
+- **Modern ES modules** instead of legacy script loading
+- **ESLint** for code quality
+
+### Prerequisites
+
+- Node.js 18+ 
+- npm or yarn
+
+### Installation
+
+```bash
+npm install
+```
+
+### Development Server
+
+```bash
+npm run dev
+```
+
+This starts a development server at `http://localhost:3000` with hot module replacement.
+
+### Build for Production
+
+```bash
+npm run build
+```
+
+The built files will be in the `dist/` directory.
+
+### Preview Production Build
+
+```bash
+npm run preview
+```
+
+### Type Checking
+
+```bash
+npm run type-check
+```
+
+### Linting
+
+```bash
+npm run lint
+```
+
+## Configuration
+
+Data source URLs can be configured in `src/config.ts`:
+
+```typescript
+url: {
+  stories: "http://ng.premii.com:8080",
+  readability: "a/read/sample.txt"
 }
-</code>
+```
 
+## Technology Stack
 
-Update these paths to point to your HN stories server and readability server. See sample.txt for readability output.
+- TypeScript
+- Vite
+- Modern JavaScript (ES2020+)
+- CSS3
+- LocalStorage for offline caching
+- Fetch API for HTTP requests
 
-### Unofficial Hacker News API for HN data
-- https://github.com/cheeaun/node-hnapi/
+## Legacy Links
 
-### Others
-* Icon font - http://icomoon.io
-* Normalize.css - https://github.com/necolas/normalize.css/
+- Original Web: http://hn.premii.com
+- iOS: https://itunes.apple.com/us/app/hacker-news-yc/id713733435
+- Android: https://play.google.com/store/apps/details?id=com.premii.hn
 
-#### Build process (Not included)
-* Using nodejs to generate production ready code
-* Removes all console.log messages
-* Combine and minify JS using uglifyjs
-* Combine CSS into one file
-* Phonegap ready code
+## Credits
+
+- Icon font - http://icomoon.io
+- Normalize.css - https://github.com/necolas/normalize.css/
+- Unofficial Hacker News API - https://github.com/cheeaun/node-hnapi/
+
+## License
+
+MIT
 

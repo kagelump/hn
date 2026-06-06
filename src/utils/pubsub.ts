@@ -1,31 +1,31 @@
-// Simple PubSub implementation
+// Typed PubSub implementation
 type Callback = (...args: unknown[]) => void;
 
 class PubSubService {
-  private subscribers: Map<string, Callback[]> = new Map();
+  private subscribers = new Map<string, Set<Callback>>();
 
   subscribe(event: string, callback: Callback): void {
     if (!this.subscribers.has(event)) {
-      this.subscribers.set(event, []);
+      this.subscribers.set(event, new Set());
     }
-    this.subscribers.get(event)!.push(callback);
+    this.subscribers.get(event)!.add(callback);
   }
 
   publish(event: string, ...args: unknown[]): void {
     const callbacks = this.subscribers.get(event);
     if (callbacks) {
-      callbacks.forEach(callback => callback(...args));
+      for (const callback of callbacks) {
+        callback(...args);
+      }
     }
   }
 
   unsubscribe(event: string, callback: Callback): void {
-    const callbacks = this.subscribers.get(event);
-    if (callbacks) {
-      const index = callbacks.indexOf(callback);
-      if (index > -1) {
-        callbacks.splice(index, 1);
-      }
-    }
+    this.subscribers.get(event)?.delete(callback);
+  }
+
+  clear(): void {
+    this.subscribers.clear();
   }
 }
 

@@ -7,19 +7,23 @@ import './styles/dark.css';
 
 import { config } from './config';
 import { PubSub } from './utils/pubsub';
-import { template, prerender } from './utils/template';
-import { timeAgo } from './utils/time';
+import { prerender } from './utils/template';
 import { data } from './modules/data';
-import { perf } from './modules/performance';
 import { loading } from './modules/ui';
-import Cookies from 'js-cookie';
+import { store } from './utils/storage';
+import { initRouter, goHome, navigateTo, showPage } from './modules/router';
+import { initCommentsPage } from './modules/comments';
+import { initArticlePage } from './modules/article';
+import { initSettingsPage } from './modules/settings';
+import { initAboutPage } from './modules/about';
+import { initPerformancePage } from './modules/performance-page';
 
 // Add HTML class to show app
 document.querySelector('html')?.classList.add('show-app');
 
-// Initialize theme
-const theme = Cookies.get('theme') || 'default';
-const fontSize = Cookies.get('fontsize') || 'normal';
+// Initialize theme from localStorage
+const theme = store.get<string>('theme') || 'default';
+const fontSize = store.get<string>('fontsize') || 'normal';
 const htmlNode = document.querySelector('html');
 if (htmlNode) {
   htmlNode.classList.add(`theme-${theme}`, `font-${fontSize}`);
@@ -28,68 +32,118 @@ if (htmlNode) {
 }
 
 // Auto-hide read comments
-const hideReadComment = Cookies.get('hideReadComment') || 'yes';
+const hideReadComment = store.get<string>('hideReadComment') || 'yes';
 if (hideReadComment === 'yes' && htmlNode) {
   htmlNode.classList.add('hide-comment-visited');
 }
 
-// Export global API for compatibility
-declare global {
-  interface Window {
-    $hn: {
-      config: typeof config;
-      PubSub: typeof PubSub;
-      template: typeof template;
-      prerender: typeof prerender;
-      timeAgo: typeof timeAgo;
-      data: typeof data;
-      perf: typeof perf;
-      loading: typeof loading;
-    };
-  }
-}
-
-window.$hn = {
-  config,
-  PubSub,
-  template,
-  prerender,
-  timeAgo,
-  data,
-  perf,
-  loading
-};
-
-// Simple click handler for links
+// Delegated click handler
 function setupClickHandlers(): void {
   document.addEventListener('click', (event: MouseEvent) => {
     const target = event.target as HTMLElement;
-    const link = target.closest('a');
-    
-    if (link && link.getAttribute('href')?.startsWith('#')) {
+    const link = target.closest('a') as HTMLAnchorElement | null;
+
+    if (!link) return;
+
+    const href = link.getAttribute('href') || '';
+
+    // Handle hash-based navigation links
+    if (href.startsWith('#/')) {
       event.preventDefault();
-      
-      const href = link.getAttribute('href') || '';
-      const parts = href.substring(1).split('/');
-      
-      if (parts.length >= 2) {
-        const action = parts[0];
-        const id = parts[1];
-        
-        if (action === 'article' || action === 'comments') {
-          loading.show(event.clientX, event.clientY);
-          PubSub.publish(`show-${action}`, Number(id));
-        }
-      }
+      navigateTo(href);
+      return;
+    }
+
+    // Handle back-home links
+    if (link.classList.contains('back-home') || link.closest('.back-home')) {
+      event.preventDefault();
+      goHome();
+      return;
+    }
+
+    // Handle reload
+    if (link.classList.contains('reload') || link.closest('.reload')) {
+      event.preventDefault();
+      loading.show(event.clientX, event.clientY);
+      PubSub.publish('reload-home');
+      return;
+    }
+
+    // Handle submenu items BEFORE toggle (items are inside .toggle-submenu)
+    if (link.classList.contains('filter-fp')) {
+      event.preventDefault();
+      loading.show(event.clientX, event.clientY);
+      PubSub.publish('load-home');
+      closeSubmenu();
+      return;
+    }
+    if (link.classList.contains('filter-ask-hn')) {
+      event.preventDefault();
+      loading.show(event.clientX, event.clientY);
+      PubSub.publish('filter-home', 'ask');
+      closeSubmenu();
+      return;
+    }
+    if (link.classList.contains('filter-show-hn')) {
+      event.preventDefault();
+      loading.show(event.clientX, event.clientY);
+      PubSub.publish('filter-home', 'show');
+      closeSubmenu();
+      return;
+    }
+    if (link.classList.contains('filter-today-top-10')) {
+      event.preventDefault();
+      loading.show(event.clientX, event.clientY);
+      PubSub.publish('filter-home', 'todayTop10');
+      closeSubmenu();
+      return;
+    }
+    if (link.classList.contains('filter-yesterday-top-10')) {
+      event.preventDefault();
+      loading.show(event.clientX, event.clientY);
+      PubSub.publish('filter-home', 'yesterdayTop10');
+      closeSubmenu();
+      return;
+    }
+    if (link.classList.contains('filter-week-top-10')) {
+      event.preventDefault();
+      loading.show(event.clientX, event.clientY);
+      PubSub.publish('filter-home', 'weekTop10');
+      closeSubmenu();
+      return;
+    }
+    if (link.classList.contains('show-settings')) {
+      event.preventDefault();
+      navigateTo('#/settings');
+      closeSubmenu();
+      return;
+    }
+    if (link.classList.contains('show-performance')) {
+      event.preventDefault();
+      navigateTo('#/performance');
+      closeSubmenu();
+      return;
+    }
+
+    // Handle submenu toggle (AFTER submenu items)
+    if (link.classList.contains('toggle-submenu') || link.closest('.toggle-submenu')) {
+      event.preventDefault();
+      const submenuParent = document.querySelector('.submenu')?.parentElement;
+      submenuParent?.classList.toggle('show-submenu');
+      return;
     }
   });
+}
+
+function closeSubmenu(): void {
+  document.querySelector('.submenu')?.parentElement?.classList.remove('show-submenu');
 }
 
 // Initialize home page
 function initHomePage(): void {
   const homePage = document.querySelector('.page-home');
   const homePageBody = homePage?.querySelector('.bd');
-  
+
   if (!homePage || !homePageBody) {
     console.error('Home page elements not found');
     return;
@@ -98,37 +152,73 @@ function initHomePage(): void {
   const listItemTemplate = document.querySelector('.template-list-item')?.innerHTML || '';
   const listItemRender = prerender(listItemTemplate);
 
-  PubSub.subscribe('load-home', () => {
-    data.getArticles((items) => {
-      const html = items.map(item => {
-        if (item.domain && item.url) {
-          item.self = false;
-          item.urlTitle = item.url.replace(/^https?:\/\//, '');
-        } else {
-          item.self = true;
-          item.urlTitle = '';
-        }
-        item.text = item.text || '';
-        return item.id ? listItemRender(item as unknown as Record<string, unknown>) : '';
-      }).join('');
+  function renderList(items: Array<Record<string, unknown>>): void {
+    const html = items.map(item => {
+      if (item.domain && item.url) {
+        item.self = false;
+        item.urlTitle = (item.url as string).replace(/^https?:\/\//, '');
+      } else {
+        item.self = true;
+        item.urlTitle = '';
+      }
+      item.text = item.text || '';
+      return item.id ? listItemRender(item) : '';
+    }).join('');
 
-      loading.hide();
-      homePageBody.innerHTML = `<ul class="list">${html}</ul>`;
-      homePage.classList.add('show-page');
-    });
+    loading.hide();
+    homePageBody!.innerHTML = `<ul class="list">${html}</ul>`;
+    homePage!.classList.add('show-page');
+  }
+
+  PubSub.subscribe('load-home', () => {
+    showPage('page-home', 'Hacker News');
+    data.getArticles((items) => {
+      renderList(items as unknown as Array<Record<string, unknown>>);
+    }, true);
+  });
+
+  PubSub.subscribe('reload-home', () => {
+    data.getArticles((items) => {
+      renderList(items as unknown as Array<Record<string, unknown>>);
+    }, true);
+  });
+
+  PubSub.subscribe('filter-home', (type: unknown) => {
+    const filterType = String(type);
+    showPage('page-home', 'Hacker News');
+
+    if (filterType === 'todayTop10' || filterType === 'yesterdayTop10' || filterType === 'weekTop10') {
+      // These require date-based queries not supported by Firebase API directly
+      // Fall back to top stories for now
+      data.getArticles((items) => {
+        renderList(items as unknown as Array<Record<string, unknown>>);
+      }, true);
+    } else {
+      data.getArticlesByType(filterType, (items) => {
+        renderList(items as unknown as Array<Record<string, unknown>>);
+      });
+    }
   });
 }
 
 // Initialize the application
 function init(): void {
   console.log('Initializing Hacker News Reader v' + config.v.app);
-  
+
   setupClickHandlers();
   initHomePage();
-  
+  initRouter();
+  initCommentsPage();
+  initArticlePage();
+  initSettingsPage();
+  initAboutPage();
+  initPerformancePage();
+
   // Load home page on start
   setTimeout(() => {
-    PubSub.publish('load-home');
+    if (!window.location.hash || window.location.hash === '#/' || window.location.hash === '#') {
+      PubSub.publish('load-home');
+    }
   }, 100);
 }
 
@@ -138,5 +228,3 @@ if (document.readyState === 'loading') {
 } else {
   init();
 }
-
-export default {};

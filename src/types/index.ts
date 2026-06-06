@@ -1,5 +1,32 @@
 // Type definitions for the Hacker News app
 
+// Raw item from the HN Firebase API
+export interface FirebaseItem {
+  id: number;
+  by?: string;
+  title?: string;
+  url?: string;
+  text?: string;
+  score?: number;
+  time?: number;
+  type?: string;
+  descendants?: number;
+  kids?: number[];
+  parent?: number;
+  dead?: boolean;
+  deleted?: boolean;
+}
+
+// App-facing comment type
+export interface HNComment {
+  id: number;
+  user: string;
+  time_ago: string;
+  content: string;
+  comments?: HNComment[];
+}
+
+// App-facing item type (transformed from FirebaseItem)
 export interface HNItem {
   id: number;
   title: string;
@@ -11,42 +38,17 @@ export interface HNItem {
   urlTitle?: string;
   self: boolean;
   comments_count: number;
-  content?: string;
   text?: string;
   type?: string;
   visitedArticle?: string;
   visitedComments?: string;
-  article?: string;
   comments?: HNComment[];
   commentsFetchTime?: number;
   lastReadComment?: number;
-}
-
-export interface HNComment {
-  id: number;
-  user: string;
-  time_ago: string;
-  content: string;
-  comments?: HNComment[];
-}
-
-export interface AppConfig {
-  version: number;
-  nativeApp: boolean;
-  iScrollEnable: boolean;
-  apikey: string;
-  url: {
-    stories: string;
-    share: string;
-    readability: string;
-    storiesBackup?: string;
-  };
-  v: {
-    js: number;
-    css: number;
-    app: number;
-  };
-  hnid: string | null;
+  kids?: number[];
+  allKids?: number[];
+  fetchedKidsCount?: number;
+  allCommentsLoaded?: boolean;
 }
 
 export interface VisitedItem {

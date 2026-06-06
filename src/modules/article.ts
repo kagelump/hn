@@ -1,13 +1,68 @@
 // Article content page module
+import { Readability } from '@mozilla/readability';
+import { Capacitor } from '@capacitor/core';
+import { ReaderFetch } from '../plugins/reader-fetch';
 import { data } from './data';
 import { showPage } from './router';
 import { PubSub } from '../utils/pubsub';
+import { store } from '../utils/storage';
 import { escapeHtml } from '../utils/template';
 import type { HNItem } from '../types';
+
+const DEFAULT_CORS_PROXY = 'https://api.allorigins.win/raw?url=';
+
+function getCorsProxyUrl(): string {
+  return store.get<string>('corsProxy') || DEFAULT_CORS_PROXY;
+}
+
+async function fetchArticleHtml(url: string): Promise<string> {
+  // On native platforms, use the Capacitor plugin (no CORS needed)
+  if (Capacitor.isNativePlatform()) {
+    try {
+      const result = await ReaderFetch.fetchHtml({ url, timeout: 15000 });
+      if (result.error) {
+        console.warn('Native fetch error:', result.error);
+      } else if (result.html) {
+        return result.html;
+      }
+    } catch (err) {
+      console.warn('Native fetch failed, falling back to CORS proxy:', err);
+    }
+  }
+
+  // Web fallback: use CORS proxy
+  const proxy = getCorsProxyUrl();
+  const proxyUrl = proxy + encodeURIComponent(url);
+  const response = await fetch(proxyUrl);
+  if (!response.ok) {
+    throw new Error(`Failed to fetch article: ${response.status}`);
+  }
+  return response.text();
+}
+
+function parseWithReadability(html: string, url: string): { title: string; byline: string; content: string } | null {
+  const doc = new DOMParser().parseFromString(html, 'text/html');
+  // Rewrite relative URLs to absolute
+  const base = doc.createElement('base');
+  base.href = url;
+  doc.head.appendChild(base);
+
+  const reader = new Readability(doc);
+  const article = reader.parse();
+  if (!article) return null;
+
+  return {
+    title: article.title || '',
+    byline: article.byline || '',
+    content: article.content || ''
+  };
+}
 
 function renderArticlePage(article: HNItem): void {
   const page = document.querySelector('.page-article-content') as HTMLElement | null;
   if (!page) return;
+
+  const hasExternalUrl = !!article.url;
 
   const headerHtml = `
     <div class="header-container">
@@ -17,6 +72,7 @@ function renderArticlePage(article: HNItem): void {
         </ul>
         <h1>Article</h1>
         <ul class="r-menu list-inline menu">
+          ${hasExternalUrl ? `<li><button class="reader-toggle" type="button" aria-label="Reader mode"><span class="icon icon-newspaper"></span></button></li>` : ''}
           <li><a href="#/comments/${article.id}" class="show-comments"><span class="icon icon-bubble"></span></a></li>
         </ul>
       </header>
@@ -53,6 +109,7 @@ function renderArticlePage(article: HNItem): void {
       <div class="article-link">
         <a href="${escapeHtml(article.url)}" target="_blank" rel="noopener noreferrer">${escapeHtml(displayUrl)}</a>
       </div>
+      <div class="article-reader"></div>
     `;
   } else {
     contentHtml = `
@@ -69,6 +126,56 @@ function renderArticlePage(article: HNItem): void {
       <div class="bd">${contentHtml}</div>
     </section>
   `;
+
+  // Reader mode toggle handler
+  if (hasExternalUrl && article.url) {
+    const readerBtn = page.querySelector('.reader-toggle') as HTMLElement | null;
+    const readerContainer = page.querySelector('.article-reader') as HTMLElement | null;
+    if (readerBtn && readerContainer) {
+      let readerActive = false;
+
+      readerBtn.addEventListener('click', async () => {
+        if (readerActive) {
+          // Toggle off — hide reader content, show link
+          readerContainer.innerHTML = '';
+          readerContainer.classList.remove('active');
+          readerBtn.classList.remove('active');
+          readerActive = false;
+          return;
+        }
+
+        // Show loading state
+        readerBtn.classList.add('active');
+        readerContainer.innerHTML = '<p class="reader-loading">Loading reader view…</p>';
+        readerContainer.classList.add('active');
+
+        try {
+          const html = await fetchArticleHtml(article.url!);
+          const parsed = parseWithReadability(html, article.url!);
+
+          if (!parsed) {
+            readerContainer.innerHTML = '<p class="reader-error">Could not extract article content.</p>';
+            return;
+          }
+
+          const bylineHtml = parsed.byline
+            ? `<div class="reader-byline">${escapeHtml(parsed.byline)}</div>`
+            : '';
+
+          readerContainer.innerHTML = `
+            <div class="reader-content">
+              ${bylineHtml}
+              <div class="reader-body">${parsed.content}</div>
+            </div>
+          `;
+          readerActive = true;
+        } catch (err) {
+          console.error('Reader mode failed:', err);
+          readerContainer.innerHTML = '<p class="reader-error">Failed to load article. Try opening the link directly.</p>';
+        }
+      });
+    }
+  }
 }
 
 export function initArticlePage(): void {

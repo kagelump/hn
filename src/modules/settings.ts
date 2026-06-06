@@ -1,8 +1,10 @@
 // Settings page module
+import { Capacitor } from '@capacitor/core';
 import { showPage } from './router';
 import { PubSub } from '../utils/pubsub';
 import { store } from '../utils/storage';
 import { config } from '../config';
+import { escapeHtml } from '../utils/template';
 
 const THEMES = ['default', 'dark'];
 const FONT_SIZES = ['normal', 'large', 'x-large'];
@@ -39,6 +41,8 @@ function renderSettingsPage(): void {
   const currentTheme = store.get<string>('theme') || 'default';
   const currentFontSize = store.get<string>('fontsize') || 'normal';
   const hideRead = store.get<string>('hideReadComment') || 'yes';
+  const isNative = Capacitor.isNativePlatform();
+  const corsProxy = store.get<string>('corsProxy') || 'https://api.allorigins.win/raw?url=';
 
   const themeOptions = THEMES.map(t =>
     `<option value="${t}" ${t === currentTheme ? 'selected' : ''}>${t}</option>`
@@ -73,6 +77,12 @@ function renderSettingsPage(): void {
             <label for="hide-read">Auto-hide read comments</label>
             <input type="checkbox" id="hide-read" ${hideRead === 'yes' ? 'checked' : ''}>
           </li>
+          ${!isNative ? `
+          <li class="setting-item setting-item-text">
+            <label for="cors-proxy">CORS proxy URL</label>
+            <input type="url" id="cors-proxy" value="${escapeHtml(corsProxy)}" placeholder="https://api.allorigins.win/raw?url=">
+          </li>
+          ` : ''}
         </ul>
         <div class="settings-version">
           <p>Version ${config.v.app}-${config.v.js}-${config.v.css}</p>
@@ -89,6 +99,13 @@ function renderSettingsPage(): void {
   themeSelect?.addEventListener('change', () => applyTheme(themeSelect.value));
   fontSelect?.addEventListener('change', () => applyFontSize(fontSelect.value));
   hideReadCheckbox?.addEventListener('change', () => applyHideReadComments(hideReadCheckbox.checked));
+
+  if (!isNative) {
+    const corsProxyInput = page.querySelector('#cors-proxy') as HTMLInputElement | null;
+    corsProxyInput?.addEventListener('change', () => {
+      store.set('corsProxy', corsProxyInput.value);
+    });
+  }
 }
 
 export function initSettingsPage(): void {

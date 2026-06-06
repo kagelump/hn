@@ -90,3 +90,30 @@
 .theme-dark .load-more-comments:hover {
     background: rgba(102,153,204,0.1);
 }
+
+.theme-dark .reader-toggle {
+    border-color: rgba(255,255,255,0.15);
+}
+.theme-dark .reader-toggle:hover {
+    background: rgba(255,255,255,0.05);
+}
+.theme-dark .reader-toggle.active {
+    background: rgba(102,153,204,0.15);
+    border-color: #69c;
+    color: #69c;
+}
+.theme-dark .article-reader.active {
+    border-top-color: rgba(255,255,255,0.1);
+}
+.theme-dark .reader-body pre {
+    background: rgba(255,255,255,0.05);
+}
+.theme-dark .reader-body blockquote {
+    border-left-color: rgba(255,255,255,0.15);
+    color: #999;
+}
+.theme-dark .setting-item-text input {
+    background: #111;
+    border-color: rgba(255,255,255,0.15);
+    color: #ccc;
+}

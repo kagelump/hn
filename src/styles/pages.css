@@ -509,6 +509,91 @@
     border-bottom: 1px solid rgba(0,0,0,0.1);
     background: rgba(0,0,0,0.02);
 }
+.article-link {
+    padding: 15px;
+}
+.reader-toggle {
+    background: none;
+    border: 1px solid rgba(0,0,0,0.15);
+    border-radius: 3px;
+    padding: 4px 8px;
+    cursor: pointer;
+    line-height: 1;
+}
+.reader-toggle:hover {
+    background: rgba(0,0,0,0.05);
+}
+.reader-toggle.active {
+    background: rgba(255,102,0,0.1);
+    border-color: #f60;
+    color: #f60;
+}
+.article-reader {
+    display: none;
+}
+.article-reader.active {
+    display: block;
+    border-top: 1px solid rgba(0,0,0,0.1);
+}
+.reader-content {
+    padding: 15px;
+}
+.reader-byline {
+    color: #888;
+    font-size: 0.9em;
+    margin-bottom: 12px;
+}
+.reader-body {
+    line-height: 1.6;
+    word-break: break-word;
+    overflow-wrap: break-word;
+}
+.reader-body p {
+    margin: 0 0 12px;
+}
+.reader-body h1, .reader-body h2, .reader-body h3,
+.reader-body h4, .reader-body h5, .reader-body h6 {
+    margin: 16px 0 8px;
+    line-height: 1.3;
+}
+.reader-body img {
+    max-width: 100%;
+    height: auto;
+}
+.reader-body pre {
+    background: rgba(0,0,0,0.05);
+    padding: 10px;
+    border-radius: 3px;
+    overflow-x: auto;
+    font-size: 0.9em;
+}
+.reader-body blockquote {
+    border-left: 3px solid rgba(0,0,0,0.15);
+    margin: 0 0 12px;
+    padding: 4px 12px;
+    color: #666;
+}
+.reader-loading, .reader-error {
+    padding: 20px 15px;
+    text-align: center;
+    color: #888;
+}
+.reader-error {
+    color: #c33;
+}
+.setting-item-text {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 6px;
+}
+.setting-item-text input {
+    width: 100%;
+    font-size: 0.85em;
+    padding: 6px 8px;
+    border: 1px solid rgba(0,0,0,0.15);
+    border-radius: 3px;
+    font-family: monospace;
+}
 .settings-list {
     list-style: none;
     margin: 0;

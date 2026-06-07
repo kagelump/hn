@@ -66,7 +66,7 @@
 
 .pages-container .header-container {
     position: absolute;
-    top: 0;
+    top: env(safe-area-inset-top);
     left: 0;
     right: 0;
     height: 50px;
@@ -74,12 +74,13 @@
 
 .pages-container .pagebd-container {
     position: absolute;
-    top: 50px;
+    top: calc(50px + env(safe-area-inset-top));
     left: 0;
     right: 0;
-    bottom: 0;
+    bottom: env(safe-area-inset-bottom);
     background: rgba(255,255,255,0.95);
     overflow-y: auto;
+    overflow-x: hidden;
     -webkit-overflow-scrolling: touch;
     -ms-overflow-style: -ms-autohiding-scrollbar;
 }
@@ -537,6 +538,8 @@
 }
 .reader-content {
     padding: 15px;
+    max-width: 100%;
+    overflow: hidden;
 }
 .reader-byline {
     color: #888;
@@ -547,6 +550,8 @@
     line-height: 1.6;
     word-break: break-word;
     overflow-wrap: break-word;
+    max-width: 100%;
+    overflow-x: hidden;
 }
 .reader-body p {
     margin: 0 0 12px;
@@ -559,6 +564,12 @@
 .reader-body img {
     max-width: 100%;
     height: auto;
+}
+.reader-body iframe,
+.reader-body figure,
+.reader-body table {
+    max-width: 100%;
+    overflow-x: auto;
 }
 .reader-body pre {
     background: rgba(0,0,0,0.05);

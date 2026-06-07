@@ -11,7 +11,7 @@ import { prerender } from './utils/template';
 import { data } from './modules/data';
 import { loading } from './modules/ui';
 import { store } from './utils/storage';
-import { initRouter, goHome, navigateTo, showPage } from './modules/router';
+import { initRouter, goHome, navigateTo, goBack, showPage } from './modules/router';
 import { initCommentsPage } from './modules/comments';
 import { initArticlePage } from './modules/article';
 import { initSettingsPage } from './modules/settings';
@@ -139,6 +139,33 @@ function closeSubmenu(): void {
   document.querySelector('.submenu')?.parentElement?.classList.remove('show-submenu');
 }
 
+// Swipe-to-go-back gesture
+function setupSwipeGesture(): void {
+  let startX = 0;
+  let startY = 0;
+  const SWIPE_THRESHOLD = 50;
+
+  document.addEventListener('touchstart', (e: TouchEvent) => {
+    startX = e.touches[0].clientX;
+    startY = e.touches[0].clientY;
+  }, { passive: true });
+
+  document.addEventListener('touchend', (e: TouchEvent) => {
+    const endX = e.changedTouches[0].clientX;
+    const endY = e.changedTouches[0].clientY;
+    const deltaX = endX - startX;
+    const deltaY = Math.abs(endY - startY);
+
+    // Only trigger if: horizontal swipe, left-to-right, significant distance, not on home page
+    if (deltaX > SWIPE_THRESHOLD && deltaY < 80 && startX < 30) {
+      const homePage = document.querySelector('.page-home');
+      if (homePage && !homePage.classList.contains('show-page')) {
+        goBack();
+      }
+    }
+  }, { passive: true });
+}
+
 // Initialize home page
 function initHomePage(): void {
   const homePage = document.querySelector('.page-home');
@@ -206,6 +233,7 @@ function init(): void {
   console.log('Initializing Hacker News Reader v' + config.v.app);
 
   setupClickHandlers();
+  setupSwipeGesture();
   initHomePage();
   initRouter();
   initCommentsPage();

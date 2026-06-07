@@ -24,6 +24,7 @@ export interface HNComment {
   time_ago: string;
   content: string;
   comments?: HNComment[];
+  colorClass?: string;
 }
 
 // App-facing item type (transformed from FirebaseItem)
@@ -49,6 +50,7 @@ export interface HNItem {
   allKids?: number[];
   fetchedKidsCount?: number;
   allCommentsLoaded?: boolean;
+  sortWarning?: string;
 }
 
 export interface VisitedItem {

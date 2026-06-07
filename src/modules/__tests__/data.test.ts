@@ -14,13 +14,15 @@ vi.mock('../performance', () => ({
 }));
 
 // Import after mocks are set up
-import { data } from '../data';
+import { data, extractHnPageData, sortCommentsByPageOrder, applyColorClasses } from '../data';
+import type { HNComment } from '../../types';
 
 function mockFetchResponse(body: unknown, ok = true) {
   return Promise.resolve({
     ok,
     status: ok ? 200 : 500,
-    json: () => Promise.resolve(body)
+    json: () => Promise.resolve(body),
+    text: () => Promise.resolve(typeof body === 'string' ? body : JSON.stringify(body))
   });
 }
 
@@ -782,6 +784,416 @@ describe('data module', () => {
       });
 
       expect(items[0].text).toBeUndefined();
+    });
+  });
+
+  describe('extractHnPageData', () => {
+    const storyId = 48432199;
+
+    it('extracts comment IDs in page order from HN HTML', () => {
+      // tr elements must be inside a table for DOMParser to preserve them
+      const html = `<table>
+        <tr class="athing" id="48432199"></tr>
+        <tr class="athing comtr" id="48432429"></tr>
+        <tr class="athing comtr" id="48433055"></tr>
+        <tr class="athing comtr" id="48432748"></tr>
+      </table>`;
+      const result = extractHnPageData(html, storyId);
+      expect(result.orderedIds).toEqual([48432429, 48433055, 48432748]);
+    });
+
+    it('filters out the story row itself', () => {
+      const html = `<table>
+        <tr class="athing" id="48432199"></tr>
+        <tr class="athing comtr" id="48432429"></tr>
+      </table>`;
+      const result = extractHnPageData(html, storyId);
+      expect(result.orderedIds).not.toContain(storyId);
+      expect(result.orderedIds).toEqual([48432429]);
+    });
+
+    it('extracts color classes from commtext divs', () => {
+      const html = `<table>
+        <tr class="athing" id="48432199"></tr>
+        <tr class="athing comtr" id="48432429">
+          <td><div class="commtext c00">normal comment</div></td>
+        </tr>
+        <tr class="athing comtr" id="48433055">
+          <td><div class="commtext c88">downvoted</div></td>
+        </tr>
+        <tr class="athing comtr" id="48432748">
+          <td><div class="commtext c5A">slightly downvoted</div></td>
+        </tr>
+      </table>`;
+      const result = extractHnPageData(html, storyId);
+      expect(result.colorClasses.get(48432429)).toBe('c00');
+      expect(result.colorClasses.get(48433055)).toBe('c88');
+      expect(result.colorClasses.get(48432748)).toBe('c5A');
+    });
+
+    it('collects order and colors from deeply nested HN table structure', () => {
+      // Real HN comment structure: tr > td > table > tbody > tr > td > div.comment > div.commtext
+      const html = `<table>
+        <tr class="athing" id="48432199"></tr>
+        <tr class="athing comtr" id="48434420">
+          <td>
+            <table>
+              <tbody>
+                <tr>
+                  <td class="ind"><img width="0"></td>
+                  <td class="default">
+                    <div class="comment">
+                      <span class="comhead">user 1 hour ago</span>
+                      <div class="commtext c00">normal</div>
+                    </div>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </td>
+        </tr>
+        <tr class="athing comtr" id="48434573">
+          <td>
+            <table>
+              <tbody>
+                <tr>
+                  <td class="ind"><img width="40"></td>
+                  <td class="default">
+                    <div class="comment">
+                      <div class="commtext c5A">downvoted</div>
+                    </div>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </td>
+        </tr>
+      </table>`;
+      const result = extractHnPageData(html, storyId);
+      expect(result.orderedIds).toEqual([48434420, 48434573]);
+      expect(result.colorClasses.get(48434420)).toBe('c00');
+      expect(result.colorClasses.get(48434573)).toBe('c5A');
+    });
+
+    it('handles comments without commtext div gracefully', () => {
+      const html = `<table>
+        <tr class="athing comtr" id="48432429"><td>no commtext here</td></tr>
+      </table>`;
+      const result = extractHnPageData(html, storyId);
+      expect(result.orderedIds).toEqual([48432429]);
+      expect(result.colorClasses.has(48432429)).toBe(false);
+    });
+
+    it('handles empty HTML gracefully', () => {
+      const result = extractHnPageData('', storyId);
+      expect(result.orderedIds).toEqual([]);
+      expect(result.colorClasses.size).toBe(0);
+    });
+
+    it('falls back to regex extraction when HTML has no table wrapper', () => {
+      // Bare tr elements (no <table>) get dropped by DOMParser — regex fallback catches them
+      const html = 'garbage <tr class="athing" id="48432429"><td>broken';
+      const result = extractHnPageData(html, storyId);
+      expect(result.orderedIds).toContain(48432429);
+    });
+  });
+
+  describe('sortCommentsByPageOrder', () => {
+    function makeComment(id: number, children?: HNComment[]): HNComment {
+      return { id, user: 'u', time_ago: '1h', content: '', comments: children };
+    }
+
+    it('sorts top-level comments by page order', () => {
+      const comments = [
+        makeComment(3),
+        makeComment(1),
+        makeComment(2),
+      ];
+      const order = [1, 2, 3];
+      const sorted = sortCommentsByPageOrder(comments, order);
+      expect(sorted.map(c => c.id)).toEqual([1, 2, 3]);
+    });
+
+    it('recursively sorts nested comments', () => {
+      const comments = [
+        makeComment(1, [
+          makeComment(13),
+          makeComment(11),
+          makeComment(12),
+        ]),
+        makeComment(2),
+      ];
+      const order = [1, 11, 12, 13, 2];
+      const sorted = sortCommentsByPageOrder(comments, order);
+      expect(sorted[0].id).toBe(1);
+      expect(sorted[0].comments!.map(c => c.id)).toEqual([11, 12, 13]);
+      expect(sorted[1].id).toBe(2);
+    });
+
+    it('places comments not in orderedIds at the end, preserving original relative order', () => {
+      const comments = [
+        makeComment(3),
+        makeComment(1),
+        makeComment(2),
+      ];
+      const order = [2]; // only 2 is in the order
+      const sorted = sortCommentsByPageOrder(comments, order);
+      // 2 comes first (in order), then 3 and 1 in original Algolia order (stable sort)
+      expect(sorted.map(c => c.id)).toEqual([2, 3, 1]);
+    });
+
+    it('returns empty array when given empty comments', () => {
+      const sorted = sortCommentsByPageOrder([], [1, 2, 3]);
+      expect(sorted).toEqual([]);
+    });
+
+    it('preserves comment properties beyond id', () => {
+      const comments: HNComment[] = [
+        { id: 2, user: 'b', time_ago: '2h', content: 'second' },
+        { id: 1, user: 'a', time_ago: '1h', content: 'first' },
+      ];
+      const sorted = sortCommentsByPageOrder(comments, [1, 2]);
+      expect(sorted[0].user).toBe('a');
+      expect(sorted[0].content).toBe('first');
+      expect(sorted[1].user).toBe('b');
+      expect(sorted[1].content).toBe('second');
+    });
+
+    it('does not mutate the original comments array', () => {
+      const comments = [makeComment(2), makeComment(1)];
+      const sorted = sortCommentsByPageOrder(comments, [1, 2]);
+      expect(comments[0].id).toBe(2); // original unchanged
+      expect(sorted[0].id).toBe(1);
+    });
+  });
+
+  describe('applyColorClasses', () => {
+    function makeComment(id: number, children?: HNComment[]): HNComment {
+      return { id, user: 'u', time_ago: '1h', content: '', comments: children };
+    }
+
+    it('applies color class to matching comments', () => {
+      const comments = [
+        makeComment(1),
+        makeComment(2),
+      ];
+      const colorClasses = new Map<number, string>([
+        [1, 'c88'],
+        [2, 'c5A'],
+      ]);
+      applyColorClasses(comments, colorClasses);
+      expect(comments[0].colorClass).toBe('c88');
+      expect(comments[1].colorClass).toBe('c5A');
+    });
+
+    it('skips c00 since it is the default black', () => {
+      const comments = [makeComment(1)];
+      const colorClasses = new Map<number, string>([[1, 'c00']]);
+      applyColorClasses(comments, colorClasses);
+      expect(comments[0].colorClass).toBeUndefined();
+    });
+
+    it('applies color classes recursively to nested comments', () => {
+      const comments = [
+        makeComment(1, [
+          makeComment(11),
+          makeComment(12),
+        ]),
+      ];
+      const colorClasses = new Map<number, string>([
+        [11, 'cAE'],
+        [12, 'cDD'],
+      ]);
+      applyColorClasses(comments, colorClasses);
+      expect(comments[0].comments![0].colorClass).toBe('cAE');
+      expect(comments[0].comments![1].colorClass).toBe('cDD');
+    });
+
+    it('leaves comments not in the map unchanged', () => {
+      const comments = [makeComment(1)];
+      applyColorClasses(comments, new Map());
+      expect(comments[0].colorClass).toBeUndefined();
+    });
+
+    it('handles deeply nested trees', () => {
+      const comments = [
+        makeComment(1, [
+          makeComment(2, [
+            makeComment(3),
+          ]),
+        ]),
+      ];
+      const colorClasses = new Map<number, string>([[3, 'c88']]);
+      applyColorClasses(comments, colorClasses);
+      expect(comments[0].comments![0].comments![0].colorClass).toBe('c88');
+    });
+  });
+
+  describe('getArticleComments with HN page ordering', () => {
+    it('sets sortWarning when HN page fetch fails', async () => {
+      const algoliaResponse = {
+        id: 5001,
+        type: 'story',
+        author: 'author',
+        title: 'Test',
+        points: 10,
+        created_at_i: Math.floor(Date.now() / 1000),
+        children: [
+          {
+            id: 6001,
+            type: 'comment',
+            author: 'c1',
+            text: 'Comment 1',
+            created_at_i: Math.floor(Date.now() / 1000),
+            children: []
+          }
+        ]
+      };
+
+      // First call: Algolia succeeds. Second call: HN page fails.
+      mockFetch.mockReset();
+      mockFetch
+        .mockImplementationOnce(() => mockFetchResponse(algoliaResponse))
+        .mockImplementationOnce(() => Promise.reject(new Error('CORS proxy down')));
+
+      const result = await new Promise<Record<string, unknown>>((resolve) => {
+        data.getArticleComments(5001, (item) => resolve(item as unknown as Record<string, unknown>), true);
+      });
+
+      expect(result.sortWarning).toBeDefined();
+      expect(result.sortWarning).toContain('Could not fetch the HN page');
+    });
+
+    it('sorts comments by HN page order and applies color classes when fetch succeeds', async () => {
+      const algoliaResponse = {
+        id: 5002,
+        type: 'story',
+        author: 'author',
+        title: 'Sort Test',
+        points: 10,
+        created_at_i: Math.floor(Date.now() / 1000),
+        children: [
+          {
+            id: 6003,
+            type: 'comment',
+            author: 'c3',
+            text: 'Third',
+            created_at_i: Math.floor(Date.now() / 1000),
+            children: []
+          },
+          {
+            id: 6001,
+            type: 'comment',
+            author: 'c1',
+            text: 'First',
+            created_at_i: Math.floor(Date.now() / 1000),
+            children: []
+          },
+          {
+            id: 6002,
+            type: 'comment',
+            author: 'c2',
+            text: 'Second',
+            created_at_i: Math.floor(Date.now() / 1000),
+            children: []
+          }
+        ]
+      };
+
+      // HN page HTML with comments in order: 6001, 6002, 6003
+      // 6003 has c88 (downvoted)
+      const hnHtml = `<table>
+        <tr class="athing" id="5002"></tr>
+        <tr class="athing comtr" id="6001"><td><div class="commtext c00">First</div></td></tr>
+        <tr class="athing comtr" id="6002"><td><div class="commtext c00">Second</div></td></tr>
+        <tr class="athing comtr" id="6003"><td><div class="commtext c88">Third</div></td></tr>
+      </table>`;
+
+      mockFetch.mockReset();
+      mockFetch
+        .mockImplementationOnce(() => mockFetchResponse(algoliaResponse))
+        .mockImplementationOnce(() => mockFetchResponse(hnHtml));
+
+      const result = await new Promise<Record<string, unknown>>((resolve) => {
+        data.getArticleComments(5002, (item) => resolve(item as unknown as Record<string, unknown>), true);
+      });
+
+      const comments = result.comments as Record<string, unknown>[];
+      expect(comments).toHaveLength(3);
+      expect(comments[0].id).toBe(6001);
+      expect(comments[1].id).toBe(6002);
+      expect(comments[2].id).toBe(6003);
+
+      // Downvoted comment gets color class
+      expect(comments[2].colorClass).toBe('c88');
+
+      // Healthy comments don't get c00 attached
+      expect(comments[0].colorClass).toBeUndefined();
+
+      // No warning when everything succeeds
+      expect(result.sortWarning).toBeUndefined();
+    });
+
+    it('sorts nested comments correctly from page order', async () => {
+      const algoliaResponse = {
+        id: 5003,
+        type: 'story',
+        author: 'author',
+        title: 'Nested Test',
+        points: 5,
+        created_at_i: Math.floor(Date.now() / 1000),
+        children: [
+          {
+            id: 7001,
+            type: 'comment',
+            author: 'parent',
+            text: 'Parent',
+            created_at_i: Math.floor(Date.now() / 1000),
+            children: [
+              {
+                id: 7003,
+                type: 'comment',
+                author: 'reply2',
+                text: 'Second reply',
+                created_at_i: Math.floor(Date.now() / 1000),
+                children: []
+              },
+              {
+                id: 7002,
+                type: 'comment',
+                author: 'reply1',
+                text: 'First reply',
+                created_at_i: Math.floor(Date.now() / 1000),
+                children: []
+              }
+            ]
+          }
+        ]
+      };
+
+      // Page order: parent, then replies in correct order
+      const hnHtml = `<table>
+        <tr class="athing" id="5003"></tr>
+        <tr class="athing comtr" id="7001"><td><div class="commtext c00">Parent</div></td></tr>
+        <tr class="athing comtr" id="7002"><td><div class="commtext c00">Reply 1</div></td></tr>
+        <tr class="athing comtr" id="7003"><td><div class="commtext c00">Reply 2</div></td></tr>
+      </table>`;
+
+      mockFetch.mockReset();
+      mockFetch
+        .mockImplementationOnce(() => mockFetchResponse(algoliaResponse))
+        .mockImplementationOnce(() => mockFetchResponse(hnHtml));
+
+      const result = await new Promise<Record<string, unknown>>((resolve) => {
+        data.getArticleComments(5003, (item) => resolve(item as unknown as Record<string, unknown>), true);
+      });
+
+      const comments = result.comments as Record<string, unknown>[];
+      expect(comments).toHaveLength(1);
+      const replies = comments[0].comments as Record<string, unknown>[];
+      expect(replies).toHaveLength(2);
+      expect(replies[0].id).toBe(7002);
+      expect(replies[1].id).toBe(7003);
     });
   });
 });

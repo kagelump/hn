@@ -834,3 +834,74 @@
     width: 26%;
     z-index: 6;
 }
+
+/* Sort warning button in comments header */
+.sort-warning-btn {
+    width: 24px;
+    height: 24px;
+    border-radius: 50%;
+    border: 2px solid var(--color-warning, #e67e22);
+    background: transparent;
+    color: var(--color-warning, #e67e22);
+    font-weight: 700;
+    font-size: 14px;
+    line-height: 20px;
+    text-align: center;
+    cursor: pointer;
+    padding: 0;
+}
+
+.sort-warning-btn:hover {
+    background: var(--color-warning, #e67e22);
+    color: #fff;
+}
+
+/* Sort warning modal */
+.sort-warning-modal {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.5);
+    z-index: 1000;
+    align-items: center;
+    justify-content: center;
+}
+
+.sort-warning-modal-content {
+    background: var(--color-bg-card, #fff);
+    color: var(--color-text, #333);
+    border-radius: 8px;
+    padding: 24px;
+    max-width: 360px;
+    width: 90%;
+    box-shadow: 0 4px 24px rgba(0, 0, 0, 0.2);
+    text-align: center;
+}
+
+.sort-warning-modal-content p {
+    margin: 0 0 16px 0;
+    font-size: 14px;
+    line-height: 1.5;
+}
+
+.sort-warning-close {
+    padding: 8px 24px;
+    border: none;
+    border-radius: 4px;
+    background: var(--color-warning, #e67e22);
+    color: #fff;
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+}
+
+.sort-warning-close:hover {
+    opacity: 0.9;
+}
+
+/* Dark theme overrides */
+.theme-dark .sort-warning-modal-content {
+    background: #1a1a2e;
+    color: #e0e0e0;
+}
+

@@ -1,4 +1,5 @@
 // Data module for fetching and caching HN data via Firebase API
+import { Capacitor, CapacitorHttp } from '@capacitor/core';
 import type { FirebaseItem, HNItem, HNComment, VisitedData, VisitedItem, LocalData } from '../types';
 import { config } from '../config';
 import { store } from '../utils/storage';
@@ -7,6 +8,8 @@ import { escapeHtml } from '../utils/template';
 
 const FIREBASE_BASE = config.url.stories;
 const ALGOLIA_BASE = 'https://hn.algolia.com/api/v1';
+const HN_ITEM_URL = 'https://news.ycombinator.com/item';
+const DEFAULT_CORS_PROXY = 'https://api.allorigins.win/raw?url=';
 
 let abortController: AbortController | null = null;
 
@@ -112,6 +115,122 @@ function transformAlgoliaComment(item: AlgoliaItem): HNComment {
 
 async function fetchAlgoliaItem(id: number, signal?: AbortSignal): Promise<AlgoliaItem> {
   return fetchJson<AlgoliaItem>(`${ALGOLIA_BASE}/items/${id}`, signal);
+}
+
+function getCorsProxyUrl(): string {
+  return store.get<string>('corsProxy') || DEFAULT_CORS_PROXY;
+}
+
+async function fetchHnPageHtml(id: number, signal?: AbortSignal): Promise<string> {
+  const url = `${HN_ITEM_URL}?id=${id}`;
+
+  // On native platforms, use CapacitorHttp (no CORS needed)
+  if (Capacitor.isNativePlatform()) {
+    try {
+      const result = await CapacitorHttp.get({ url, responseType: 'text' });
+      const html = result.data as string;
+      if (html) {
+        return html;
+      }
+    } catch (err) {
+      console.warn('[HN Page] Native fetch failed, falling back to CORS proxy:', err);
+    }
+  }
+
+  // Web fallback: use CORS proxy
+  const proxy = getCorsProxyUrl();
+  const proxyUrl = proxy + encodeURIComponent(url);
+  const response = await fetch(proxyUrl, { signal });
+  if (!response.ok) {
+    throw new Error(`Failed to fetch HN page: ${response.status}`);
+  }
+  return response.text();
+}
+
+interface HnPageData {
+  orderedIds: number[];
+  colorClasses: Map<number, string>;
+}
+
+export function extractHnPageData(html: string, storyId: number): HnPageData {
+  const orderedIds: number[] = [];
+  const colorClasses = new Map<number, string>();
+
+  try {
+    const doc = new DOMParser().parseFromString(html, 'text/html');
+    // Select all comment rows (tr.athing with an id that isn't the story itself)
+    const rows = doc.querySelectorAll('tr.athing[id]');
+
+    for (const row of rows) {
+      const id = Number(row.id);
+      if (!id || id === storyId) continue;
+
+      orderedIds.push(id);
+
+      // Find the commtext div inside this row to get the color class
+      const commtext = row.querySelector('.commtext');
+      if (commtext) {
+        const classList = commtext.className.split(/\s+/);
+        const colorClass = classList.find(c => /^c[a-fA-F0-9]{2}$/.test(c));
+        if (colorClass) {
+          colorClasses.set(id, colorClass);
+        }
+      }
+    }
+  } catch {
+    // DOMParser threw — fall through to regex below
+  }
+
+  // Fallback to regex if DOMParser found nothing (e.g. bare <tr> without <table> wrapper)
+  if (orderedIds.length === 0) {
+    const idRegex = /<tr[^>]*\sid="(\d+)"[^>]*>/g;
+    let match: RegExpExecArray | null;
+    while ((match = idRegex.exec(html)) !== null) {
+      const id = Number(match[1]);
+      if (id !== storyId) {
+        orderedIds.push(id);
+      }
+    }
+  }
+
+  return { orderedIds, colorClasses };
+}
+
+export function applyColorClasses(comments: HNComment[], colorClasses: Map<number, string>): void {
+  for (const comment of comments) {
+    const colorClass = colorClasses.get(comment.id);
+    if (colorClass && colorClass !== 'c00') {
+      // c00 is the default black — no need to store it
+      comment.colorClass = colorClass;
+    }
+    if (comment.comments && comment.comments.length > 0) {
+      applyColorClasses(comment.comments, colorClasses);
+    }
+  }
+}
+
+export function sortCommentsByPageOrder(comments: HNComment[], orderedIds: number[]): HNComment[] {
+  // Build position map from the scraped HTML order
+  const position = new Map<number, number>();
+  orderedIds.forEach((id, i) => position.set(id, i));
+
+  function sortLevel(items: HNComment[]): HNComment[] {
+    // Sort by page position; IDs not in the page fall to the end (preserving Algolia order via stable sort)
+    const sorted = [...items].sort((a, b) => {
+      const posA = position.get(a.id) ?? Infinity;
+      const posB = position.get(b.id) ?? Infinity;
+      return posA - posB;
+    });
+    // Recursively sort children
+    for (const item of sorted) {
+      if (item.comments && item.comments.length > 0) {
+        item.comments = sortLevel(item.comments);
+      }
+    }
+    return sorted;
+  }
+
+  return sortLevel(comments);
 }
 
 async function fetchJson<T>(url: string, signal?: AbortSignal): Promise<T> {
@@ -353,8 +472,14 @@ export async function getArticleComments(
     abortController = new AbortController();
     const { signal } = abortController;
 
-    // Use Algolia API — returns the full comment tree in one request
-    const algoliaItem = await fetchAlgoliaItem(id, signal);
+    // Fetch Algolia (full comment tree) and HN HTML page (correct ordering) in parallel
+    const [algoliaItem, hnHtmlResult] = await Promise.all([
+      fetchAlgoliaItem(id, signal),
+      fetchHnPageHtml(id, signal).catch((err): string => {
+        console.warn('Failed to fetch HN page for comment ordering:', err);
+        return '';
+      })
+    ]);
     perf.update(String(id), 'comments-fetch', Date.now() - t0);
 
     // Build item from Algolia data (Algolia returns top-level fields differently)
@@ -362,9 +487,22 @@ export async function getArticleComments(
 
     // Transform all comments from the Algolia tree
     // Algolia's num_comments is often null, so derive count from children
-    const allComments = (algoliaItem.children || [])
+    let allComments = (algoliaItem.children || [])
       .filter(c => c.type === 'comment')
       .map(transformAlgoliaComment);
+
+    let sortWarning: string | undefined;
+
+    if (hnHtmlResult) {
+      // Extract comment ID order and color classes from the HN HTML page
+      const pageData = extractHnPageData(hnHtmlResult, id);
+      if (pageData.orderedIds.length > 0) {
+        allComments = sortCommentsByPageOrder(allComments, pageData.orderedIds);
+        applyColorClasses(allComments, pageData.colorClasses);
+      }
+    } else {
+      sortWarning = 'Could not fetch the HN page to determine comment ordering. Comments are shown in default order.';
+    }
 
     const item: HNItem = {
       id: algoliaItem.id,
@@ -378,7 +516,8 @@ export async function getArticleComments(
       comments_count: allComments.length,
       text: algoliaItem.text,
       type: algoliaItem.type,
-      kids: []
+      kids: [],
+      sortWarning
     };
 
     item.allKids = allComments.map(c => c.id);

@@ -31,6 +31,11 @@ function getCommentsHtml(comments: HNComment[], lastReadComment?: number): strin
       : '';
     const collapseButton = `<button class="comment-toggle" data-comment-id="${comment.id}" data-total-count="${childCount}" aria-label="Collapse">[-]${childCountLabel}</button>`;
 
+    // Apply HN's downvote color (c88 → #888888, etc.)
+    const colorStyle = comment.colorClass
+      ? ` style="color: #${comment.colorClass.slice(1)}"`
+      : '';
+
     const childHtml = hasChildren
       ? `<ul class="comment-children" data-parent-id="${comment.id}">${getCommentsHtml(comment.comments!, lastReadComment)}</ul>`
       : '';
@@ -43,7 +48,7 @@ function getCommentsHtml(comments: HNComment[], lastReadComment?: number): strin
           ${collapseButton}
         </div>
         <div class="comment-body">
-          <div class="comment-content">${comment.content}</div>
+          <div class="comment-content"${colorStyle}>${comment.content}</div>
           ${childHtml}
         </div>
       </li>
@@ -51,7 +56,11 @@ function getCommentsHtml(comments: HNComment[], lastReadComment?: number): strin
   }).join('');
 }
 
-function getHeaderHtml(): string {
+function getHeaderHtml(sortWarning?: string): string {
+  const warningBtn = sortWarning
+    ? `<li><button class="sort-warning-btn" type="button" aria-label="Comment ordering warning" title="Comment ordering issue">!</button></li>`
+    : '';
+
   return `
     <div class="header-container">
       <header class="header">
@@ -59,7 +68,7 @@ function getHeaderHtml(): string {
           <li><a href="#/" class="back-home"><span class="icon icon-arrow-left"></span></a></li>
         </ul>
         <h1>Comments</h1>
-        <ul class="r-menu list-inline menu"></ul>
+        <ul class="r-menu list-inline menu">${warningBtn}</ul>
       </header>
     </div>
   `;
@@ -95,19 +104,49 @@ function renderCommentsIntoPage(article: HNItem): void {
 
   const metaHtml = getArticleMetaHtml(article);
 
+  const warningModal = article.sortWarning
+    ? `<div class="sort-warning-modal" style="display:none;">
+        <div class="sort-warning-modal-content">
+          <p>${escapeHtml(article.sortWarning)}</p>
+          <button class="sort-warning-close" type="button">OK</button>
+        </div>
+       </div>`
+    : '';
+
   page.innerHTML = `
-    ${getHeaderHtml()}
+    ${getHeaderHtml(article.sortWarning)}
     <section class="pagebd-container">
       <div class="bd">
         ${metaHtml}
         ${commentsHtml}
       </div>
     </section>
+    ${warningModal}
   `;
 
-  // Event delegation for collapse/expand
+  // Event delegation for collapse/expand and warning modal
   page.addEventListener('click', (event: MouseEvent) => {
     const target = event.target as HTMLElement;
+
+    // Handle sort warning button
+    if (target.closest('.sort-warning-btn')) {
+      event.preventDefault();
+      const modal = page.querySelector('.sort-warning-modal') as HTMLElement | null;
+      if (modal) {
+        modal.style.display = 'flex';
+      }
+      return;
+    }
+
+    // Handle sort warning modal close
+    if (target.closest('.sort-warning-close')) {
+      event.preventDefault();
+      const modal = target.closest('.sort-warning-modal') as HTMLElement | null;
+      if (modal) {
+        modal.style.display = 'none';
+      }
+      return;
+    }
 
     // Handle collapse toggle button
     const toggleBtn = target.closest('.comment-toggle') as HTMLElement | null;
@@ -150,7 +189,7 @@ export function initCommentsPage(): void {
       const page = document.querySelector('.page-article-comments') as HTMLElement | null;
       if (page) {
         page.innerHTML = `
-          ${getHeaderHtml()}
+          ${getHeaderHtml(cached.sortWarning)}
           <section class="pagebd-container">
             <div class="bd">
               ${getArticleMetaHtml(cached)}

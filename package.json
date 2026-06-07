@@ -23,6 +23,7 @@
   "author": "",
   "license": "MIT",
   "devDependencies": {
+    "@capacitor/cli": "^7.6.6",
     "@playwright/test": "^1.60.0",
     "@types/mozilla-readability": "^0.2.1",
     "@types/node": "^20.10.0",
@@ -36,9 +37,12 @@
     "vitest": "^4.1.8"
   },
   "dependencies": {
-    "@capacitor/cli": "^8.4.0",
-    "@capacitor/core": "^8.4.0",
-    "@capacitor/ios": "^8.4.0",
+    "@capacitor/app": "^7.1.2",
+    "@capacitor/core": "^7.6.6",
+    "@capacitor/haptics": "^7.0.5",
+    "@capacitor/ios": "^7.6.6",
+    "@capacitor/keyboard": "^7.0.6",
+    "@capacitor/status-bar": "^7.0.6",
     "@mozilla/readability": "^0.6.0"
   }
 }

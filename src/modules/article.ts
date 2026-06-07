@@ -67,7 +67,7 @@ function parseWithReadability(html: string, url: string): { title: string; bylin
   };
 }
 
-async function loadReaderContent(url: string, container: HTMLElement, article: HNItem): Promise<void> {
+async function loadReaderContent(url: string, container: HTMLElement): Promise<void> {
   try {
     const html = await fetchArticleHtml(url);
     // Bail if the user navigated away while fetching
@@ -79,9 +79,6 @@ async function loadReaderContent(url: string, container: HTMLElement, article: H
       container.innerHTML = '<p class="reader-error">Could not extract article content.</p>';
       return;
     }
-
-    // Update the ChatGPT button to include the extracted article content
-    updateChatGptUrl(article, parsed.content);
 
     const bylineHtml = parsed.byline
       ? `<div class="reader-byline">${escapeHtml(parsed.byline)}</div>`
@@ -101,28 +98,43 @@ async function loadReaderContent(url: string, container: HTMLElement, article: H
   }
 }
 
-function getChatGptUrl(article: HNItem): string {
-  const prompt = article.url
-    ? `Summarize the following article:\n\n${article.title}\n${article.url}`
-    : `Summarize the following article:\n\n${article.title}\n\n${(article.text || '').replace(/<[^>]*>/g, '')}`;
-  return `https://chatgpt.com/?q=${encodeURIComponent(prompt)}`;
-}
+async function shareArticle(): Promise<void> {
+  const page = document.querySelector('.page-article-content') as HTMLElement | null;
+  if (!page) return;
 
-function updateChatGptUrl(article: HNItem, contentHtml: string): void {
-  const btn = document.querySelector('.chatgpt-btn') as HTMLAnchorElement | null;
-  if (!btn) return;
+  const titleEl = page.querySelector('.article-header h2');
+  const title = titleEl?.textContent?.trim() || '';
 
-  // Strip HTML tags to get plain text
-  const plainText = contentHtml.replace(/<[^>]*>/g, '').trim();
-  const MAX_LEN = 400;
-  const truncated = plainText.length > MAX_LEN
-    ? plainText.slice(0, MAX_LEN) + '…'
-    : plainText;
+  const linkEl = page.querySelector('.article-link a') as HTMLAnchorElement | null;
+  const url = linkEl?.href || '';
 
-  const prompt = article.url
-    ? `Summarize the following article:\n\n${article.title}\n${article.url}\n\n${truncated}`
-    : `Summarize the following article:\n\n${article.title}\n\n${truncated}`;
-  btn.href = `https://chatgpt.com/?q=${encodeURIComponent(prompt)}`;
+  // Gather full article content from reader view or self-post
+  const contentEl = page.querySelector('.reader-content') || page.querySelector('.article-content');
+  const bodyText = contentEl ? (contentEl.textContent || '').trim() : '';
+
+  const shareText = url
+    ? `${title}\n${url}\n\n${bodyText}`
+    : `${title}\n\n${bodyText}`;
+
+  if (navigator.share) {
+    try {
+      await navigator.share({
+        title,
+        text: shareText,
+        url: url || undefined
+      });
+    } catch {
+      // User cancelled — no action needed
+    }
+  } else {
+    // Fallback: copy full content to clipboard
+    try {
+      await navigator.clipboard.writeText(shareText);
+      alert('Article content copied to clipboard.');
+    } catch {
+      // last resort
+    }
+  }
 }
 
 function renderArticlePage(article: HNItem): void {
@@ -130,7 +142,6 @@ function renderArticlePage(article: HNItem): void {
   if (!page) return;
 
   const hasExternalUrl = !!article.url;
-  const chatGptUrl = getChatGptUrl(article);
 
   const headerHtml = `
     <div class="header-container">
@@ -141,7 +152,7 @@ function renderArticlePage(article: HNItem): void {
         <h1>Article</h1>
         <ul class="r-menu list-inline menu">
           ${hasExternalUrl ? `<li><button class="reader-toggle active" type="button" aria-label="Toggle reader view"><span class="icon icon-newspaper"></span></button></li>` : ''}
-          <li><a href="${chatGptUrl}" target="_blank" rel="noopener noreferrer" class="chatgpt-btn" aria-label="Summarize with ChatGPT"><span>GPT</span></a></li>
+          <li><button class="share-btn" type="button" aria-label="Share article"><span class="icon icon-share"></span></button></li>
           <li><a href="#/comments/${article.id}" class="show-comments"><span class="icon icon-bubble"></span></a></li>
         </ul>
       </header>
@@ -198,13 +209,22 @@ function renderArticlePage(article: HNItem): void {
     </section>
   `;
 
+  // Share button click handler
+  const shareBtn = page.querySelector('.share-btn') as HTMLElement | null;
+  if (shareBtn) {
+    shareBtn.addEventListener('click', (event: MouseEvent) => {
+      event.preventDefault();
+      shareArticle();
+    });
+  }
+
   // For external articles: auto-load reader content + toggle button
   if (hasExternalUrl && article.url) {
     const readerBtn = page.querySelector('.reader-toggle') as HTMLElement | null;
     const readerContainer = page.querySelector('.article-reader') as HTMLElement | null;
 
     if (readerContainer) {
-      loadReaderContent(article.url, readerContainer, article);
+      loadReaderContent(article.url, readerContainer);
     }
 
     if (readerBtn && readerContainer) {

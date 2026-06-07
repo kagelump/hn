@@ -5,6 +5,13 @@ import { PubSub } from '../utils/pubsub';
 import { escapeHtml } from '../utils/template';
 import type { HNComment, HNItem } from '../types';
 
+function shortenTimeAgo(timeAgo: string): string {
+  const match = timeAgo.match(/(\d+)\s+(second|minute|hour|day|month|year)s?\s+ago/);
+  if (!match) return timeAgo;
+  const unit = match[2][0]; // s, m, h, d, m, y
+  return `${match[1]}${unit}`;
+}
+
 function countChildren(comments: HNComment[]): number {
   let count = comments.length;
   for (const comment of comments) {
@@ -20,7 +27,7 @@ function getCommentsHtml(comments: HNComment[], lastReadComment?: number): strin
     const childCount = hasChildren ? countChildren(comment.comments!) : 0;
 
     const childCountLabel = hasChildren
-      ? ` <span class="child-count">${childCount} ${childCount === 1 ? 'reply' : 'replies'}</span>`
+      ? ` <span class="child-count">${childCount}</span>`
       : '';
     const collapseButton = `<button class="comment-toggle" data-comment-id="${comment.id}" data-total-count="${childCount}" aria-label="Collapse">[-]${childCountLabel}</button>`;
 
@@ -31,9 +38,9 @@ function getCommentsHtml(comments: HNComment[], lastReadComment?: number): strin
     return `
       <li class="comment ${visitedClass}" data-id="${comment.id}">
         <div class="comment-meta">
-          ${collapseButton}
           <span class="comment-user">${escapeHtml(comment.user)}</span>
-          <span class="comment-time">${comment.time_ago}</span>
+          <span class="comment-time">${shortenTimeAgo(comment.time_ago)}</span>
+          ${collapseButton}
         </div>
         <div class="comment-body">
           <div class="comment-content">${comment.content}</div>
@@ -44,11 +51,8 @@ function getCommentsHtml(comments: HNComment[], lastReadComment?: number): strin
   }).join('');
 }
 
-function renderCommentsPage(article: HNItem): void {
-  const page = document.querySelector('.page-article-comments') as HTMLElement | null;
-  if (!page) return;
-
-  const headerHtml = `
+function getHeaderHtml(): string {
+  return `
     <div class="header-container">
       <header class="header">
         <ul class="l-menu list-inline menu">
@@ -59,31 +63,43 @@ function renderCommentsPage(article: HNItem): void {
       </header>
     </div>
   `;
+}
 
+function getArticleMetaHtml(article: HNItem): string {
   const opHtml = article.text
     ? `<div class="op-comment"><div class="comment-content">${article.text}</div></div>`
     : '';
 
-  const allComments = article.comments || [];
+  return `
+    <div class="article-header">
+      <h2>${escapeHtml(article.title)}</h2>
+      <div class="article-meta">
+        <span class="points">${article.points}</span>
+        <span class="author">${escapeHtml(article.user)}</span>
+        <span class="time-ago">${shortenTimeAgo(article.time_ago)}</span>
+        <span class="comments-count">${article.comments_count} comments</span>
+      </div>
+    </div>
+    ${opHtml}
+  `;
+}
 
+function renderCommentsIntoPage(article: HNItem): void {
+  const page = document.querySelector('.page-article-comments') as HTMLElement | null;
+  if (!page) return;
+
+  const allComments = article.comments || [];
   const commentsHtml = allComments.length
     ? `<ul class="comments-list">${getCommentsHtml(allComments, article.lastReadComment)}</ul>`
     : '<p class="no-comments">No comments yet.</p>';
 
+  const metaHtml = getArticleMetaHtml(article);
+
   page.innerHTML = `
-    ${headerHtml}
+    ${getHeaderHtml()}
     <section class="pagebd-container">
       <div class="bd">
-        <div class="article-header">
-          <h2>${escapeHtml(article.title)}</h2>
-          <div class="article-meta">
-            <span class="points">${article.points}</span>
-            <span class="author">${escapeHtml(article.user)}</span>
-            <span class="time-ago">${article.time_ago}</span>
-            <span class="comments-count">${article.comments_count} comments</span>
-          </div>
-        </div>
-        ${opHtml}
+        ${metaHtml}
         ${commentsHtml}
       </div>
     </section>
@@ -114,7 +130,7 @@ function renderCommentsPage(article: HNItem): void {
         }
         const totalCount = Number(toggleBtn.getAttribute('data-total-count')) || 0;
         const countLabel = totalCount > 0
-          ? ` <span class="child-count">${totalCount} ${totalCount === 1 ? 'reply' : 'replies'}</span>`
+          ? ` <span class="child-count">${totalCount}</span>`
           : '';
         toggleBtn.innerHTML = isCollapsed ? `[+]${countLabel}` : `[-]${countLabel}`;
       }
@@ -128,9 +144,31 @@ export function initCommentsPage(): void {
     const articleId = Number(id);
     showPage('page-article-comments', 'Comments');
 
-    data.getArticleComments(articleId, (article) => {
-      renderCommentsPage(article);
-    });
+    const cached = data.getArticleById(articleId);
+    if (cached) {
+      // Phase 1: render header + article meta instantly from cache
+      const page = document.querySelector('.page-article-comments') as HTMLElement | null;
+      if (page) {
+        page.innerHTML = `
+          ${getHeaderHtml()}
+          <section class="pagebd-container">
+            <div class="bd">
+              ${getArticleMetaHtml(cached)}
+              <div class="show-loading"><div class="circle"></div></div>
+            </div>
+          </section>
+        `;
+      }
+      // Phase 2: fetch full comment tree and fill in
+      data.getArticleComments(articleId, (article) => {
+        renderCommentsIntoPage(article);
+      });
+    } else {
+      // Cold load: render everything after fetch
+      data.getArticleComments(articleId, (article) => {
+        renderCommentsIntoPage(article);
+      });
+    }
   });
 
   PubSub.subscribe('onPageHidden', (className: unknown) => {

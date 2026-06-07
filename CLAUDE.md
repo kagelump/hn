@@ -85,3 +85,4 @@ Settings are restored on startup in `main.ts` before any page renders.
 - **Method swizzling the original IMP**: The block receives the instance (`self`) as its first parameter — don't discard it and pass the class metatype. Use `@convention(c)` function pointer to call the original IMP with the correct instance.
 - **Xcode project edits**: When adding files to `ios/App/App/Plugins/`, the `PBXFileReference` path must include the `Plugins/` prefix relative to the group.
 - **CAPBridgeViewController**: `webView` is a public stored property but not KVC-compliant — can't use `value(forKey:)`. Access directly as `vc.webView`.
+- **Double-tap zoom**: Disabled via `touch-action: manipulation` on `html` in `common.css`. This prevents double-tap-to-zoom while preserving pinch-to-zoom.

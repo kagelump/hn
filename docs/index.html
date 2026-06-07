@@ -1,0 +1,117 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Privacy Policy — HN Reader</title>
+  <style>
+    :root {
+      --bg: #f6f6ef;
+      --text: #333;
+      --muted: #666;
+      --accent: #ff6600;
+      --card: #fff;
+      --border: #e0e0d8;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      line-height: 1.6;
+      padding: 20px;
+    }
+    .container {
+      max-width: 680px;
+      margin: 40px auto;
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 40px;
+    }
+    .logo {
+      font-size: 18px;
+      font-weight: 700;
+      color: var(--accent);
+      margin-bottom: 8px;
+    }
+    h1 {
+      font-size: 24px;
+      margin-bottom: 8px;
+    }
+    .date {
+      color: var(--muted);
+      font-size: 14px;
+      margin-bottom: 24px;
+    }
+    h2 {
+      font-size: 18px;
+      margin: 28px 0 10px;
+    }
+    p, ul {
+      margin-bottom: 12px;
+    }
+    ul {
+      padding-left: 20px;
+    }
+    li {
+      margin-bottom: 6px;
+    }
+    a {
+      color: var(--accent);
+    }
+    footer {
+      margin-top: 40px;
+      padding-top: 20px;
+      border-top: 1px solid var(--border);
+      color: var(--muted);
+      font-size: 13px;
+      text-align: center;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="logo">HN Reader</div>
+    <h1>Privacy Policy</h1>
+    <p class="date">Last updated: June 8, 2026</p>
+
+    <p>HN Reader is a client for reading Hacker News. This policy explains what data the app handles.</p>
+
+    <h2>Data Collection</h2>
+    <p>HN Reader <strong>does not collect, store, or transmit</strong> any personal information. There are:</p>
+    <ul>
+      <li>No user accounts or sign-in</li>
+      <li>No analytics or crash reporting SDKs</li>
+      <li>No advertising or tracking</li>
+      <li>No data sent to the developer's servers</li>
+    </ul>
+
+    <h2>Local Storage</h2>
+    <p>The app stores your preferences (theme, font size, font family, accent color) and visited article history <strong>on your device only</strong> using the browser's localStorage or the platform's native storage. This data never leaves your device. You can clear it at any time from the Settings page.</p>
+
+    <h2>Network Requests</h2>
+    <p>To display content, the app makes requests to these third-party services:</p>
+    <ul>
+      <li><strong>news.ycombinator.com</strong> — Hacker News website, used to determine comment ordering and display status</li>
+      <li><strong>hacker-news.firebaseio.com</strong> — Official HN Firebase API for story lists and item data</li>
+      <li><strong>hn.algolia.com</strong> — HN Search API for comment content</li>
+    </ul>
+    <p>These requests are necessary for the app to function. The services may log standard HTTP metadata (IP address, user agent) per their own privacy policies. No personal information is sent alongside these requests.</p>
+
+    <h2>CORS Proxy</h2>
+    <p>On the web version, the app may use a CORS proxy to fetch article content. By default this uses <code>api.allorigins.win</code>. You can configure a custom proxy in Settings.</p>
+
+    <h2>Changes</h2>
+    <p>If this policy changes, updates will be posted here. Continued use of the app constitutes acceptance of the current policy.</p>
+
+    <h2>Contact</h2>
+    <p>For questions about this privacy policy:<br>
+    <a href="mailto:raycatdev@gmail.com">raycatdev@gmail.com</a></p>
+
+    <footer>
+      HN Reader &copy; 2026 Ray Cat Dev
+    </footer>
+  </div>
+</body>
+</html>

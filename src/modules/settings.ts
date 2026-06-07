@@ -188,6 +188,7 @@ function renderSettingsPage(): void {
 
         <div class="settings-version">
           <p>Version ${config.v.app}-${config.v.js}-${config.v.css}</p>
+	          <p><a href="#/about">About HN Reader</a></p>
         </div>
       </div>
     </section>

@@ -268,7 +268,7 @@ describe('data module', () => {
         url: 'https://example.com/article',
         points: 42,
         created_at_i: Math.floor(Date.now() / 1000) - 3600,
-        num_comments: 2,
+        num_comments: null, // Algolia often returns null for num_comments
         children: [
           {
             id: 2001,
@@ -371,6 +371,68 @@ describe('data module', () => {
       const cached = data.cache().articles[6001];
       expect(cached).toBeDefined();
       expect(cached.commentsFetchTime).toBeDefined();
+    });
+
+    it('derives comments_count from children when num_comments is null', async () => {
+      // Regression: Algolia API often returns num_comments as null
+      const algoliaResponse = {
+        id: 7001,
+        type: 'story',
+        author: 'author',
+        title: 'Post With Comments',
+        points: 15,
+        created_at_i: Math.floor(Date.now() / 1000),
+        num_comments: null,
+        children: [
+          {
+            id: 7101,
+            type: 'comment',
+            author: 'c1',
+            text: 'First comment',
+            created_at_i: Math.floor(Date.now() / 1000),
+            children: []
+          },
+          {
+            id: 7102,
+            type: 'comment',
+            author: 'c2',
+            text: 'Second comment',
+            created_at_i: Math.floor(Date.now() / 1000),
+            children: []
+          }
+        ]
+      };
+
+      mockFetch.mockReset();
+      mockFetch.mockImplementationOnce(() => mockFetchResponse(algoliaResponse));
+
+      const result = await new Promise<Record<string, unknown>>((resolve) => {
+        data.getArticleComments(7001, (item) => resolve(item as unknown as Record<string, unknown>), true);
+      });
+
+      expect(result.comments_count).toBe(2);
+    });
+
+    it('returns 0 comments_count when Algolia children is empty', async () => {
+      const algoliaResponse = {
+        id: 7002,
+        type: 'story',
+        author: 'author',
+        title: 'No Comments',
+        points: 3,
+        created_at_i: Math.floor(Date.now() / 1000),
+        num_comments: null,
+        children: []
+      };
+
+      mockFetch.mockReset();
+      mockFetch.mockImplementationOnce(() => mockFetchResponse(algoliaResponse));
+
+      const result = await new Promise<Record<string, unknown>>((resolve) => {
+        data.getArticleComments(7002, (item) => resolve(item as unknown as Record<string, unknown>), true);
+      });
+
+      expect(result.comments_count).toBe(0);
     });
   });
 
@@ -531,6 +593,28 @@ describe('data module', () => {
       const localData = data.cache();
       expect(localData).toBeDefined();
       expect(localData.articles).toBeDefined();
+    });
+  });
+
+  describe('getArticleById', () => {
+    it('returns cached article after getArticles loads', async () => {
+      mockFetch
+        .mockImplementationOnce(() => mockFetchResponse([1001]))
+        .mockImplementationOnce(() => mockFetchResponse(sampleFirebaseItem));
+
+      await new Promise<void>((resolve) => {
+        data.getArticles(() => resolve(), true);
+      });
+
+      const cached = data.getArticleById(1001);
+      expect(cached).toBeDefined();
+      expect(cached?.id).toBe(1001);
+      expect(cached?.title).toBe('Test Article');
+    });
+
+    it('returns undefined for unknown article id', () => {
+      const cached = data.getArticleById(99999);
+      expect(cached).toBeUndefined();
     });
   });
 

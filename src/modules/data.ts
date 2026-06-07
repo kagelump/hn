@@ -359,6 +359,13 @@ export async function getArticleComments(
 
     // Build item from Algolia data (Algolia returns top-level fields differently)
     const domain = algoliaItem.url ? extractDomain(algoliaItem.url) : '';
+
+    // Transform all comments from the Algolia tree
+    // Algolia's num_comments is often null, so derive count from children
+    const allComments = (algoliaItem.children || [])
+      .filter(c => c.type === 'comment')
+      .map(transformAlgoliaComment);
+
     const item: HNItem = {
       id: algoliaItem.id,
       title: escapeHtml(algoliaItem.title || '[deleted]'),
@@ -368,16 +375,11 @@ export async function getArticleComments(
       url: algoliaItem.url,
       domain,
       self: !algoliaItem.url,
-      comments_count: algoliaItem.num_comments ?? 0,
+      comments_count: allComments.length,
       text: algoliaItem.text,
       type: algoliaItem.type,
       kids: []
     };
-
-    // Transform all comments from the Algolia tree
-    const allComments = (algoliaItem.children || [])
-      .filter(c => c.type === 'comment')
-      .map(transformAlgoliaComment);
 
     item.allKids = allComments.map(c => c.id);
     item.comments = allComments;
@@ -412,6 +414,10 @@ export function getLocalData(): LocalData {
   return localData;
 }
 
+export function getArticleById(id: number): HNItem | undefined {
+  return localData.articles[id];
+}
+
 // Initialize on load
 init();
 
@@ -422,5 +428,6 @@ export const data = {
   getArticleMeta,
   getArticleComments,
   loadMoreComments,
+  getArticleById,
   cache: getLocalData
 };

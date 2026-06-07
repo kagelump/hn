@@ -21,4 +21,4 @@ None of these services receive any personal information from this app beyond wha
 
 ## Contact
 
-For questions about this privacy policy, contact: raycatdev@gmail.com
+For questions about this privacy policy, contact: raycatdev@hinoka.org

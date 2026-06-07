@@ -22,11 +22,13 @@ function renderAboutPage(): void {
         <div class="about-content">
           <h2>HN Reader</h2>
           <p>A fast, lightweight Hacker News reader web app.</p>
+          <p>Forked from <a href="https://github.com/premii/hn" target="_blank" rel="noopener noreferrer">github.com/premii/hn</a>.</p>
           <p>Version ${config.v.app}</p>
-          <h3>Data Source</h3>
-          <p>Powered by the official <a href="https://github.com/HackerNews/API" target="_blank" rel="noopener noreferrer">Hacker News Firebase API</a>.</p>
-	          <h3>Open Source Licenses</h3>
-	          <p>Reader mode powered by <a href="https://github.com/mozilla/readability" target="_blank" rel="noopener noreferrer">Mozilla's Readability</a> library, originally by Arc90 Inc, used under the <a href="https://www.apache.org/licenses/LICENSE-2.0" target="_blank" rel="noopener noreferrer">Apache License 2.0</a>.</p>
+          <h3>Data Sources</h3>
+          <p>Story data via the official <a href="https://github.com/HackerNews/API" target="_blank" rel="noopener noreferrer">Hacker News Firebase API</a>.</p>
+          <p>Comment trees via the <a href="https://hn.algolia.com/api" target="_blank" rel="noopener noreferrer">HN Search API</a> by Algolia.</p>
+          <h3>Open Source Licenses</h3>
+          <p>Reader mode powered by <a href="https://github.com/mozilla/readability" target="_blank" rel="noopener noreferrer">Mozilla's Readability</a> library, originally by Arc90 Inc, used under the <a href="https://www.apache.org/licenses/LICENSE-2.0" target="_blank" rel="noopener noreferrer">Apache License 2.0</a>.</p>
         </div>
       </div>
     </section>

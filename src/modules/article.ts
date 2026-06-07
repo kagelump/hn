@@ -67,6 +67,37 @@ function parseWithReadability(html: string, url: string): { title: string; bylin
   };
 }
 
+async function loadReaderContent(url: string, container: HTMLElement): Promise<void> {
+  try {
+    const html = await fetchArticleHtml(url);
+    // Bail if the user navigated away while fetching
+    if (!container.isConnected) return;
+
+    const parsed = parseWithReadability(html, url);
+
+    if (!parsed) {
+      container.innerHTML = '<p class="reader-error">Could not extract article content.</p>';
+      return;
+    }
+
+    const bylineHtml = parsed.byline
+      ? `<div class="reader-byline">${escapeHtml(parsed.byline)}</div>`
+      : '';
+
+    container.innerHTML = `
+      <div class="reader-content">
+        ${bylineHtml}
+        <div class="reader-body">${parsed.content}</div>
+      </div>
+    `;
+  } catch (err) {
+    console.error('Reader mode failed:', err);
+    if (container.isConnected) {
+      container.innerHTML = '<p class="reader-error">Failed to load article. Try opening the link directly.</p>';
+    }
+  }
+}
+
 function renderArticlePage(article: HNItem): void {
   const page = document.querySelector('.page-article-content') as HTMLElement | null;
   if (!page) return;
@@ -81,7 +112,7 @@ function renderArticlePage(article: HNItem): void {
         </ul>
         <h1>Article</h1>
         <ul class="r-menu list-inline menu">
-          ${hasExternalUrl ? `<li><button class="reader-toggle" type="button" aria-label="Reader mode"><span class="icon icon-newspaper"></span></button></li>` : ''}
+          ${hasExternalUrl ? `<li><button class="reader-toggle active" type="button" aria-label="Toggle reader view"><span class="icon icon-newspaper"></span></button></li>` : ''}
           <li><a href="#/comments/${article.id}" class="show-comments"><span class="icon icon-bubble"></span></a></li>
         </ul>
       </header>
@@ -104,7 +135,7 @@ function renderArticlePage(article: HNItem): void {
       <div class="article-content">${article.text}</div>
     `;
   } else if (article.url) {
-    // External link — show link and metadata
+    // External link — metadata + auto-load reader view
     const displayUrl = article.url.replace(/^https?:\/\//, '');
     contentHtml = `
       <div class="article-header">
@@ -118,7 +149,9 @@ function renderArticlePage(article: HNItem): void {
       <div class="article-link">
         <a href="${escapeHtml(article.url)}" target="_blank" rel="noopener noreferrer">${escapeHtml(displayUrl)}</a>
       </div>
-      <div class="article-reader"></div>
+      <div class="article-reader active">
+        <p class="reader-loading">Loading reader view…</p>
+      </div>
     `;
   } else {
     contentHtml = `
@@ -136,51 +169,27 @@ function renderArticlePage(article: HNItem): void {
     </section>
   `;
 
-  // Reader mode toggle handler
+  // For external articles: auto-load reader content + toggle button
   if (hasExternalUrl && article.url) {
     const readerBtn = page.querySelector('.reader-toggle') as HTMLElement | null;
     const readerContainer = page.querySelector('.article-reader') as HTMLElement | null;
-    if (readerBtn && readerContainer) {
-      let readerActive = false;
 
-      readerBtn.addEventListener('click', async () => {
+    if (readerContainer) {
+      loadReaderContent(article.url, readerContainer);
+    }
+
+    if (readerBtn && readerContainer) {
+      let readerActive = true;
+
+      readerBtn.addEventListener('click', () => {
         if (readerActive) {
-          // Toggle off — hide reader content, show link
-          readerContainer.innerHTML = '';
           readerContainer.classList.remove('active');
           readerBtn.classList.remove('active');
           readerActive = false;
-          return;
-        }
-
-        // Show loading state
-        readerBtn.classList.add('active');
-        readerContainer.innerHTML = '<p class="reader-loading">Loading reader view…</p>';
-        readerContainer.classList.add('active');
-
-        try {
-          const html = await fetchArticleHtml(article.url!);
-          const parsed = parseWithReadability(html, article.url!);
-
-          if (!parsed) {
-            readerContainer.innerHTML = '<p class="reader-error">Could not extract article content.</p>';
-            return;
-          }
-
-          const bylineHtml = parsed.byline
-            ? `<div class="reader-byline">${escapeHtml(parsed.byline)}</div>`
-            : '';
-
-          readerContainer.innerHTML = `
-            <div class="reader-content">
-              ${bylineHtml}
-              <div class="reader-body">${parsed.content}</div>
-            </div>
-          `;
+        } else {
+          readerContainer.classList.add('active');
+          readerBtn.classList.add('active');
           readerActive = true;
-        } catch (err) {
-          console.error('Reader mode failed:', err);
-          readerContainer.innerHTML = '<p class="reader-error">Failed to load article. Try opening the link directly.</p>';
         }
       });
     }

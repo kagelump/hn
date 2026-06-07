@@ -99,40 +99,53 @@ async function loadReaderContent(url: string, container: HTMLElement): Promise<v
 }
 
 async function shareArticle(): Promise<void> {
+  console.log('[Share] shareArticle called');
+
   const page = document.querySelector('.page-article-content') as HTMLElement | null;
+  console.log('[Share] page found:', !!page);
   if (!page) return;
 
   const titleEl = page.querySelector('.article-header h2');
   const title = titleEl?.textContent?.trim() || '';
+  console.log('[Share] title:', title);
 
   const linkEl = page.querySelector('.article-link a') as HTMLAnchorElement | null;
   const url = linkEl?.href || '';
+  console.log('[Share] url:', url);
 
   // Gather full article content from reader view or self-post
   const contentEl = page.querySelector('.reader-content') || page.querySelector('.article-content');
   const bodyText = contentEl ? (contentEl.textContent || '').trim() : '';
+  console.log('[Share] bodyText length:', bodyText.length);
 
   const shareText = url
     ? `${title}\n${url}\n\n${bodyText}`
     : `${title}\n\n${bodyText}`;
+  console.log('[Share] shareText length:', shareText.length);
+
+  console.log('[Share] navigator.share available:', !!navigator.share);
 
   if (navigator.share) {
     try {
+      console.log('[Share] calling navigator.share...');
       await navigator.share({
         title,
         text: shareText,
         url: url || undefined
       });
-    } catch {
-      // User cancelled — no action needed
+      console.log('[Share] share succeeded');
+    } catch (err) {
+      console.log('[Share] share error/cancelled:', err);
     }
   } else {
     // Fallback: copy full content to clipboard
+    console.log('[Share] navigator.share not available, trying clipboard...');
     try {
       await navigator.clipboard.writeText(shareText);
+      console.log('[Share] clipboard write succeeded');
       alert('Article content copied to clipboard.');
-    } catch {
-      // last resort
+    } catch (clipErr) {
+      console.log('[Share] clipboard failed:', clipErr);
     }
   }
 }
@@ -211,11 +224,19 @@ function renderArticlePage(article: HNItem): void {
 
   // Share button click handler
   const shareBtn = page.querySelector('.share-btn') as HTMLElement | null;
+  console.log('[Share] shareBtn found:', !!shareBtn, 'tag:', shareBtn?.tagName);
   if (shareBtn) {
     shareBtn.addEventListener('click', (event: MouseEvent) => {
+      console.log('[Share] button clicked, target:', (event.target as HTMLElement).tagName, 'class:', (event.target as HTMLElement).className);
       event.preventDefault();
       shareArticle();
     });
+    // Also listen for touch events for debugging
+    shareBtn.addEventListener('touchstart', (event: TouchEvent) => {
+      console.log('[Share] button touchstart, target:', (event.target as HTMLElement).tagName);
+    }, { passive: true });
+  } else {
+    console.log('[Share] ERROR: shareBtn not found in DOM');
   }
 
   // For external articles: auto-load reader content + toggle button

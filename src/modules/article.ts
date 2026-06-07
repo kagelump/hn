@@ -119,8 +119,8 @@ async function shareArticle(): Promise<void> {
   console.log('[Share] bodyText length:', bodyText.length);
 
   const shareText = url
-    ? `${title}\n${url}\n\n${bodyText}`
-    : `${title}\n\n${bodyText}`;
+    ? `Summarize the following article:\n\n${title}\n${url}\n\n${bodyText}`
+    : `Summarize the following article:\n\n${title}\n\n${bodyText}`;
   console.log('[Share] shareText length:', shareText.length);
 
   console.log('[Share] navigator.share available:', !!navigator.share);

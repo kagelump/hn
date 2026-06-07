@@ -1,7 +1,6 @@
 // Article content page module
 import { Readability } from '@mozilla/readability';
-import { Capacitor } from '@capacitor/core';
-import { ReaderFetch } from '../plugins/reader-fetch';
+import { Capacitor, CapacitorHttp } from '@capacitor/core';
 import { data } from './data';
 import { showPage } from './router';
 import { PubSub } from '../utils/pubsub';
@@ -16,23 +15,28 @@ function getCorsProxyUrl(): string {
 }
 
 async function fetchArticleHtml(url: string): Promise<string> {
-  // On native platforms, use the Capacitor plugin (no CORS needed)
+  console.log('[Reader] Fetching article:', url);
+  console.log('[Reader] Platform:', Capacitor.getPlatform(), 'isNative:', Capacitor.isNativePlatform());
+
+  // On native platforms, use CapacitorHttp (no CORS needed)
   if (Capacitor.isNativePlatform()) {
     try {
-      const result = await ReaderFetch.fetchHtml({ url, timeout: 15000 });
-      if (result.error) {
-        console.warn('Native fetch error:', result.error);
-      } else if (result.html) {
-        return result.html;
+      console.log('[Reader] Calling CapacitorHttp.get...');
+      const result = await CapacitorHttp.get({ url, responseType: 'text' });
+      const html = result.data as string;
+      console.log('[Reader] Native result: html length:', html?.length ?? 0);
+      if (html) {
+        return html;
       }
     } catch (err) {
-      console.warn('Native fetch failed, falling back to CORS proxy:', err);
+      console.warn('[Reader] Native fetch failed, falling back to CORS proxy:', err);
     }
   }
 
   // Web fallback: use CORS proxy
   const proxy = getCorsProxyUrl();
   const proxyUrl = proxy + encodeURIComponent(url);
+  console.log('[Reader] Using CORS proxy:', proxyUrl);
   const response = await fetch(proxyUrl);
   if (!response.ok) {
     throw new Error(`Failed to fetch article: ${response.status}`);
@@ -41,6 +45,7 @@ async function fetchArticleHtml(url: string): Promise<string> {
 }
 
 function parseWithReadability(html: string, url: string): { title: string; byline: string; content: string } | null {
+  console.log('[Reader] Parsing with Readability, HTML length:', html.length);
   const doc = new DOMParser().parseFromString(html, 'text/html');
   // Rewrite relative URLs to absolute
   const base = doc.createElement('base');
@@ -49,8 +54,12 @@ function parseWithReadability(html: string, url: string): { title: string; bylin
 
   const reader = new Readability(doc);
   const article = reader.parse();
-  if (!article) return null;
+  if (!article) {
+    console.warn('[Reader] Readability returned null for:', url);
+    return null;
+  }
 
+  console.log('[Reader] Readability parsed successfully:', article.title, 'content length:', article.content?.length);
   return {
     title: article.title || '',
     byline: article.byline || '',

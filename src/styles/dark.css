@@ -19,7 +19,7 @@
     background: rgba(255,255,255,0.04);
     color: rgba(255,255,255,0.2);
 }
-.theme-dark .pages-container .page {
+.theme-dark .pages-container > .page {
     background: #222;
 }
 .theme-dark .pages-container .pagebd-container {

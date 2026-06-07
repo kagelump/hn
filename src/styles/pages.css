@@ -412,13 +412,17 @@
     margin: 0;
     padding: 0;
     list-style: none;
-    border-left: 15px solid rgba(0,0,0,0.05);
+    border-left: 4px solid rgba(0,0,0,0.08);
+}
+.comments-list .comment-children .comment {
+    padding-left: 8px;
+    padding-right: 8px;
 }
 .comments-list .comment-children .comment-children {
-    border-left-color: rgba(0,0,0,0.07);
+    border-left-color: rgba(0,0,0,0.12);
 }
 .comments-list .comment-children .comment-children .comment-children {
-    border-left-color: rgba(0,0,0,0.09);
+    border-left-color: rgba(0,0,0,0.16);
 }
 .comment-meta {
     display: flex;
@@ -445,6 +449,7 @@
     cursor: pointer;
     font-family: monospace;
     line-height: 1.4;
+    margin-left: auto;
 }
 .comment-toggle:hover {
     background: rgba(0,0,0,0.05);

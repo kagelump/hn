@@ -19,9 +19,10 @@ function getCommentsHtml(comments: HNComment[], lastReadComment?: number): strin
     const hasChildren = comment.comments && comment.comments.length > 0;
     const childCount = hasChildren ? countChildren(comment.comments!) : 0;
 
-    const collapseButton = hasChildren
-      ? `<button class="comment-toggle" data-comment-id="${comment.id}" data-total-count="${childCount}" aria-label="Collapse thread">[-] <span class="child-count">${childCount} ${childCount === 1 ? 'reply' : 'replies'}</span></button>`
+    const childCountLabel = hasChildren
+      ? ` <span class="child-count">${childCount} ${childCount === 1 ? 'reply' : 'replies'}</span>`
       : '';
+    const collapseButton = `<button class="comment-toggle" data-comment-id="${comment.id}" data-total-count="${childCount}" aria-label="Collapse">[-]${childCountLabel}</button>`;
 
     const childHtml = hasChildren
       ? `<ul class="comment-children" data-parent-id="${comment.id}">${getCommentsHtml(comment.comments!, lastReadComment)}</ul>`
@@ -112,9 +113,10 @@ function renderCommentsPage(article: HNItem): void {
           content.style.display = isCollapsed ? 'none' : '';
         }
         const totalCount = Number(toggleBtn.getAttribute('data-total-count')) || 0;
-        toggleBtn.innerHTML = isCollapsed
-          ? `[+] <span class="child-count">${totalCount} ${totalCount === 1 ? 'reply' : 'replies'}</span>`
-          : `[-] <span class="child-count">${totalCount} ${totalCount === 1 ? 'reply' : 'replies'}</span>`;
+        const countLabel = totalCount > 0
+          ? ` <span class="child-count">${totalCount} ${totalCount === 1 ? 'reply' : 'replies'}</span>`
+          : '';
+        toggleBtn.innerHTML = isCollapsed ? `[+]${countLabel}` : `[-]${countLabel}`;
       }
       return;
     }

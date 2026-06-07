@@ -33,3 +33,9 @@ lerna-debug.log*
 
 # Claude Code
 .claude/
+
+# Release artifacts (contains signing keys — never commit)
+android/app/hnreader-release.keystore
+android/app/keystore.properties
+*.aab
+*.apk

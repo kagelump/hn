@@ -1,4 +1,4 @@
-package com.hnreader.app;
+package com.raycatdev.hnreader.v2;
 
 import com.getcapacitor.BridgeActivity;
 

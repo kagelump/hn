@@ -1,7 +1,7 @@
 import type { CapacitorConfig } from '@capacitor/cli';
 
 const config: CapacitorConfig = {
-  appId: 'com.hnreader.app',
+  appId: 'com.raycatdev.hnreader.v2',
   appName: 'HN Reader',
   webDir: 'dist',
   server: {

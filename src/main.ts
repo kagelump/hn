@@ -21,20 +21,52 @@ import { initPerformancePage } from './modules/performance-page';
 // Add HTML class to show app
 document.querySelector('html')?.classList.add('show-app');
 
-// Initialize theme from localStorage
-const theme = store.get<string>('theme') || 'default';
-const fontSize = store.get<string>('fontsize') || 'normal';
+// Initialize appearance settings from localStorage
 const htmlNode = document.querySelector('html');
 if (htmlNode) {
-  htmlNode.classList.add(`theme-${theme}`, `font-${fontSize}`);
+  // Theme
+  const theme = store.get<string>('theme') || 'default';
+  htmlNode.classList.add(`theme-${theme}`);
   htmlNode.setAttribute('data-theme', theme);
-  htmlNode.setAttribute('data-font-size', fontSize);
-}
 
-// Auto-hide read comments
-const hideReadComment = store.get<string>('hideReadComment') || 'yes';
-if (hideReadComment === 'yes' && htmlNode) {
-  htmlNode.classList.add('hide-comment-visited');
+  // Font family
+  const fontFamily = store.get<string>('fontFamily') || 'source-sans';
+  const fontFamilyMap: Record<string, string> = {
+    'source-sans': "'Source Sans Pro', Helvetica Neue, Segoe UI, Arial, sans-serif",
+    'roboto-slab': "'Roboto Slab', Georgia, serif",
+    'open-sans': "'Open Sans', Helvetica Neue, Segoe UI, Arial, sans-serif",
+    'sf': "-apple-system, BlinkMacSystemFont, 'Helvetica Neue', sans-serif"
+  };
+  if (fontFamilyMap[fontFamily]) {
+    htmlNode.style.fontFamily = fontFamilyMap[fontFamily];
+    htmlNode.setAttribute('data-font-family', fontFamily);
+  }
+
+  // Text size
+  const textSize = store.get<number>('textSize');
+  if (textSize) {
+    htmlNode.style.fontSize = `${textSize}px`;
+    htmlNode.setAttribute('data-text-size', String(textSize));
+  }
+
+  // Theme color
+  const themeColor = store.get<string>('themeColor');
+  if (themeColor) {
+    htmlNode.style.setProperty('--theme-color', themeColor);
+    htmlNode.setAttribute('data-theme-color', themeColor);
+  }
+
+  // Animation
+  const animation = store.get<string>('animation');
+  if (animation === 'no') {
+    htmlNode.classList.add('no-animation');
+  }
+
+  // Auto-hide read comments
+  const hideReadComment = store.get<string>('hideReadComment') || 'yes';
+  if (hideReadComment === 'yes') {
+    htmlNode.classList.add('hide-comment-visited');
+  }
 }
 
 // Delegated click handler
@@ -179,6 +211,8 @@ function initHomePage(): void {
   const listItemTemplate = document.querySelector('.template-list-item')?.innerHTML || '';
   const listItemRender = prerender(listItemTemplate);
 
+  let isLoadingMore = false;
+
   function renderList(items: Array<Record<string, unknown>>): void {
     const html = items.map(item => {
       if (item.domain && item.url) {
@@ -195,6 +229,33 @@ function initHomePage(): void {
     loading.hide();
     homePageBody!.innerHTML = `<ul class="list">${html}</ul>`;
     homePage!.classList.add('show-page');
+  }
+
+  function appendList(items: Array<Record<string, unknown>>): void {
+    const list = homePageBody!.querySelector('.list');
+    if (!list) return;
+
+    // Get existing IDs to avoid duplicates
+    const existingIds = new Set<string>();
+    list.querySelectorAll('li[data-id]').forEach(li => {
+      existingIds.add(li.getAttribute('data-id') || '');
+    });
+
+    const newItems = items.filter(item => item.id && !existingIds.has(String(item.id)));
+    const html = newItems.map(item => {
+      if (item.domain && item.url) {
+        item.self = false;
+        item.urlTitle = (item.url as string).replace(/^https?:\/\//, '');
+      } else {
+        item.self = true;
+        item.urlTitle = '';
+      }
+      item.text = item.text || '';
+      return item.id ? listItemRender(item) : '';
+    }).join('');
+
+    list.insertAdjacentHTML('beforeend', html);
+    isLoadingMore = false;
   }
 
   PubSub.subscribe('load-home', () => {
@@ -226,6 +287,30 @@ function initHomePage(): void {
       });
     }
   });
+
+  // Infinite scroll: load more when near bottom
+  const scrollContainer = homePageBody;
+  if (scrollContainer) {
+    scrollContainer.addEventListener('scroll', () => {
+      if (isLoadingMore) return;
+      const { scrollTop, scrollHeight, clientHeight } = scrollContainer;
+      if (scrollHeight - scrollTop - clientHeight < 200) {
+        isLoadingMore = true;
+        const list = homePageBody!.querySelector('.list');
+        if (list) {
+          list.insertAdjacentHTML('beforeend',
+            '<li class="load-more-indicator"><div class="show-loading"><div class="circle"></div></div></li>'
+          );
+        }
+        data.loadMore((items) => {
+          // Remove loading indicator
+          const indicator = homePageBody!.querySelector('.load-more-indicator');
+          indicator?.remove();
+          appendList(items as unknown as Array<Record<string, unknown>>);
+        });
+      }
+    });
+  }
 }
 
 // Initialize the application

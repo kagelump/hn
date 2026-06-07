@@ -117,3 +117,43 @@
     border-color: rgba(255,255,255,0.15);
     color: #ccc;
 }
+
+/* Settings page dark mode */
+.theme-dark .settings-section-title {
+    border-bottom-color: rgba(255,255,255,0.1);
+}
+.theme-dark .setting-radio {
+    border-bottom-color: rgba(255,255,255,0.05);
+}
+.theme-dark .radio-dot {
+    border-color: rgba(255,255,255,0.2);
+}
+.theme-dark .radio-label {
+    color: #ccc;
+}
+.theme-dark .text-size-value {
+    color: #999;
+}
+.theme-dark .text-size-slider {
+    background: rgba(255,255,255,0.2);
+}
+.theme-dark .text-size-slider::-webkit-slider-runnable-track {
+    background: rgba(255,255,255,0.2);
+}
+.theme-dark .text-size-slider::-moz-range-track {
+    background: rgba(255,255,255,0.2);
+}
+.theme-dark .color-grid {
+    gap: 3px;
+}
+.theme-dark .color-swatch.selected {
+    box-shadow: 0 0 0 2px #333, 0 0 0 4px rgba(255,255,255,0.3);
+}
+.theme-dark .settings-text-input {
+    background: #111;
+    border-color: rgba(255,255,255,0.15);
+    color: #ccc;
+}
+.theme-dark .setting-item-inline {
+    color: #ccc;
+}

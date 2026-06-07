@@ -1,0 +1,19 @@
+This directory contains self-hosted web fonts used by the application.
+
+Source Sans Pro
+  Copyright 2010-2024 Adobe (http://www.adobe.com/)
+  Licensed under the SIL Open Font License, Version 1.1
+  License: LICENSE-source-sans-pro
+  Source: https://github.com/adobe-fonts/source-sans
+
+Roboto Slab
+  Copyright 2011 Google LLC
+  Licensed under the Apache License, Version 2.0
+  License: LICENSE-apache-2.0
+  Source: https://github.com/google/fonts
+
+Open Sans
+  Copyright 2011 Google LLC
+  Licensed under the Apache License, Version 2.0
+  License: LICENSE-apache-2.0
+  Source: https://github.com/google/fonts

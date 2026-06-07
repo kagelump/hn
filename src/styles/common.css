@@ -12,22 +12,54 @@ a, input, button {
 html, body {
     height: 100%;
 }
-html {
-    font-size: 15px;
+
+/* Self-hosted fonts */
+@font-face {
+    font-family: 'Source Sans Pro';
+    font-style: normal;
+    font-weight: 400;
+    src: url('/fonts/source-sans-pro-400.woff2') format('woff2');
+}
+@font-face {
+    font-family: 'Source Sans Pro';
+    font-style: normal;
+    font-weight: 600;
+    src: url('/fonts/source-sans-pro-600.woff2') format('woff2');
+}
+@font-face {
+    font-family: 'Roboto Slab';
+    font-style: normal;
+    font-weight: 400;
+    src: url('/fonts/roboto-slab-400.woff2') format('woff2');
+}
+@font-face {
+    font-family: 'Open Sans';
+    font-style: normal;
+    font-weight: 400;
+    src: url('/fonts/open-sans-400.woff2') format('woff2');
+}
+@font-face {
+    font-family: 'Open Sans';
+    font-style: normal;
+    font-weight: 600;
+    src: url('/fonts/open-sans-600.woff2') format('woff2');
 }
 
-.font-small {
-    font-size: 13px;
+html {
+    font-size: 15px;
+    --theme-color: #ff6600;
 }
-.font-normal {
+
+.no-animation,
+.no-animation * {
+    transition: none !important;
+    animation: none !important;
 }
-.font-large {
-    font-size: 18px;
-}
+
 body {
     margin: 0 auto;
     padding: 0;
-    font-family: 'Source Sans Pro', Helvetica Neue, Segoe UI, trebuchet MS, Arial, sans-serif;
+    font-family: inherit;
     line-height: 1.618;
     color: #33393f;
     -webkit-font-smoothing: antialiased;
@@ -41,7 +73,7 @@ body {
 
 a {
     text-decoration: none;
-    color: #ff6600;
+    color: var(--theme-color);
     outline: none;
 }
 

@@ -98,11 +98,19 @@ async function loadReaderContent(url: string, container: HTMLElement): Promise<v
   }
 }
 
+function getChatGptUrl(article: HNItem): string {
+  const prompt = article.url
+    ? `Summarize the following article:\n\n${article.title}\n${article.url}`
+    : `Summarize the following article:\n\n${article.title}\n\n${(article.text || '').replace(/<[^>]*>/g, '')}`;
+  return `https://chatgpt.com/?q=${encodeURIComponent(prompt)}`;
+}
+
 function renderArticlePage(article: HNItem): void {
   const page = document.querySelector('.page-article-content') as HTMLElement | null;
   if (!page) return;
 
   const hasExternalUrl = !!article.url;
+  const chatGptUrl = getChatGptUrl(article);
 
   const headerHtml = `
     <div class="header-container">
@@ -113,6 +121,7 @@ function renderArticlePage(article: HNItem): void {
         <h1>Article</h1>
         <ul class="r-menu list-inline menu">
           ${hasExternalUrl ? `<li><button class="reader-toggle active" type="button" aria-label="Toggle reader view"><span class="icon icon-newspaper"></span></button></li>` : ''}
+          <li><a href="${chatGptUrl}" target="_blank" rel="noopener noreferrer" class="chatgpt-btn" aria-label="Summarize with ChatGPT"><span>GPT</span></a></li>
           <li><a href="#/comments/${article.id}" class="show-comments"><span class="icon icon-bubble"></span></a></li>
         </ul>
       </header>

@@ -4,6 +4,8 @@ node_modules/
 # Build output
 dist/
 build/
+coverage/
+test-results/
 
 # Logs
 *.log
@@ -28,3 +30,6 @@ lerna-debug.log*
 .env
 .env.local
 .env.*.local
+
+# Claude Code
+.claude/

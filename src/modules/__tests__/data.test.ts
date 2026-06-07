@@ -258,31 +258,48 @@ describe('data module', () => {
   });
 
   describe('getArticleComments', () => {
-    it('fetches item and recursively fetches comment tree', async () => {
-      // 1. Fetch main item (has kids [2001, 2002])
-      // 2. Fetch kids batch: [2001, 2002]
-      // 3. 2001 has kids [2003], so fetch [2003]
-      mockFetch
-        .mockImplementationOnce(() => mockFetchResponse(sampleFirebaseItem))
-        .mockImplementationOnce(() => Promise.all([
-          mockFetchResponse(sampleComment),
-          mockFetchResponse(deletedComment)
-        ]).then(responses => ({
-          ok: true,
-          status: 200,
-          json: () => Promise.resolve(responses.map(r => r.json()))
-        })))
-        .mockImplementationOnce(() => mockFetchResponse(sampleNestedComment));
+    it('fetches item via Algolia API and returns comment tree', async () => {
+      // Algolia returns the full tree in one request
+      const algoliaResponse = {
+        id: 1001,
+        type: 'story',
+        author: 'testuser',
+        title: 'Test Article',
+        url: 'https://example.com/article',
+        points: 42,
+        created_at_i: Math.floor(Date.now() / 1000) - 3600,
+        num_comments: 2,
+        children: [
+          {
+            id: 2001,
+            type: 'comment',
+            author: 'commenter',
+            text: 'Great article!',
+            created_at_i: Math.floor(Date.now() / 1000) - 1800,
+            children: [
+              {
+                id: 2003,
+                type: 'comment',
+                author: 'replier',
+                text: 'I agree!',
+                created_at_i: Math.floor(Date.now() / 1000) - 900,
+                children: []
+              }
+            ]
+          },
+          {
+            id: 2002,
+            type: 'comment',
+            author: 'someone',
+            text: 'Deleted comment',
+            created_at_i: Math.floor(Date.now() / 1000),
+            children: []
+          }
+        ]
+      };
 
-      // Actually, the fetchItems function calls fetch individually in batches.
-      // Let me restructure: it calls fetchItem for each ID.
-      // fetchItems([2001, 2002]) -> fetch(2001), fetch(2002) in same batch
       mockFetch.mockReset();
-      mockFetch
-        .mockImplementationOnce(() => mockFetchResponse(sampleFirebaseItem)) // main item
-        .mockImplementationOnce(() => mockFetchResponse(sampleComment)) // comment 2001
-        .mockImplementationOnce(() => mockFetchResponse(deletedComment)) // comment 2002 (deleted)
-        .mockImplementationOnce(() => mockFetchResponse(sampleNestedComment)); // nested 2003
+      mockFetch.mockImplementationOnce(() => mockFetchResponse(algoliaResponse));
 
       const result = await new Promise<Record<string, unknown>>((resolve) => {
         data.getArticleComments(1001, (item) => resolve(item as unknown as Record<string, unknown>), true);
@@ -291,8 +308,7 @@ describe('data module', () => {
       expect(result.id).toBe(1001);
       expect(Array.isArray(result.comments)).toBe(true);
       const comments = result.comments as Record<string, unknown>[];
-      // 2002 is deleted, so only 2001 should remain
-      expect(comments).toHaveLength(1);
+      expect(comments).toHaveLength(2);
       expect(comments[0].id).toBe(2001);
       // 2001 has nested comment 2003
       const nested = comments[0].comments as Record<string, unknown>[];
@@ -300,15 +316,21 @@ describe('data module', () => {
       expect(nested[0].id).toBe(2003);
     });
 
-    it('skips dead comments', async () => {
-      const itemWithDead: FirebaseItem = {
-        ...sampleFirebaseItem,
-        kids: [2099]
+    it('handles Algolia response with empty children', async () => {
+      const algoliaResponse = {
+        id: 1001,
+        type: 'story',
+        author: 'testuser',
+        title: 'Test Article',
+        url: 'https://example.com/article',
+        points: 42,
+        created_at_i: Math.floor(Date.now() / 1000) - 3600,
+        num_comments: 0,
+        children: []
       };
 
-      mockFetch
-        .mockImplementationOnce(() => mockFetchResponse(itemWithDead))
-        .mockImplementationOnce(() => mockFetchResponse(deadComment));
+      mockFetch.mockReset();
+      mockFetch.mockImplementationOnce(() => mockFetchResponse(algoliaResponse));
 
       const result = await new Promise<Record<string, unknown>>((resolve) => {
         data.getArticleComments(1001, (item) => resolve(item as unknown as Record<string, unknown>), true);
@@ -319,29 +341,28 @@ describe('data module', () => {
     });
 
     it('marks article as visited in comments', async () => {
-      // Main item with kids [2001], comment 2001 has no kids
-      const simpleItem: FirebaseItem = {
+      const algoliaResponse = {
         id: 6001,
-        by: 'author',
-        title: 'Simple Post',
-        score: 10,
-        time: Math.floor(Date.now() / 1000),
         type: 'story',
-        descendants: 1,
-        kids: [2001]
-      };
-      const simpleComment: FirebaseItem = {
-        id: 2001,
-        by: 'commenter',
-        text: 'Nice post',
-        time: Math.floor(Date.now() / 1000),
-        type: 'comment',
-        parent: 6001
+        author: 'author',
+        title: 'Simple Post',
+        points: 10,
+        created_at_i: Math.floor(Date.now() / 1000),
+        num_comments: 1,
+        children: [
+          {
+            id: 2001,
+            type: 'comment',
+            author: 'commenter',
+            text: 'Nice post',
+            created_at_i: Math.floor(Date.now() / 1000),
+            children: []
+          }
+        ]
       };
 
-      mockFetch
-        .mockImplementationOnce(() => mockFetchResponse(simpleItem))
-        .mockImplementationOnce(() => mockFetchResponse(simpleComment));
+      mockFetch.mockReset();
+      mockFetch.mockImplementationOnce(() => mockFetchResponse(algoliaResponse));
 
       await new Promise<Record<string, unknown>>((resolve) => {
         data.getArticleComments(6001, (item) => resolve(item as unknown as Record<string, unknown>), true);

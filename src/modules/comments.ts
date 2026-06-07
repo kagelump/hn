@@ -1,12 +1,9 @@
 // Comments page module
-import { data, COMMENT_PAGE_SIZE } from './data';
+import { data } from './data';
 import { showPage } from './router';
 import { PubSub } from '../utils/pubsub';
 import { escapeHtml } from '../utils/template';
 import type { HNComment, HNItem } from '../types';
-
-let currentArticle: HNItem | null = null;
-let renderedTopLevelCount = 0;
 
 function countChildren(comments: HNComment[]): number {
   let count = comments.length;
@@ -23,7 +20,7 @@ function getCommentsHtml(comments: HNComment[], lastReadComment?: number): strin
     const childCount = hasChildren ? countChildren(comment.comments!) : 0;
 
     const collapseButton = hasChildren
-      ? `<button class="comment-toggle" data-comment-id="${comment.id}" aria-label="Collapse thread">[-] <span class="child-count">${childCount} ${childCount === 1 ? 'reply' : 'replies'}</span></button>`
+      ? `<button class="comment-toggle" data-comment-id="${comment.id}" data-total-count="${childCount}" aria-label="Collapse thread">[-] <span class="child-count">${childCount} ${childCount === 1 ? 'reply' : 'replies'}</span></button>`
       : '';
 
     const childHtml = hasChildren
@@ -46,22 +43,9 @@ function getCommentsHtml(comments: HNComment[], lastReadComment?: number): strin
   }).join('');
 }
 
-function getLoadMoreHtml(remaining: number): string {
-  return `
-    <div class="load-more-container">
-      <button class="load-more-comments" type="button">
-        Load more comments (${remaining} remaining)
-      </button>
-    </div>
-  `;
-}
-
 function renderCommentsPage(article: HNItem): void {
   const page = document.querySelector('.page-article-comments') as HTMLElement | null;
   if (!page) return;
-
-  currentArticle = article;
-  renderedTopLevelCount = 0;
 
   const headerHtml = `
     <div class="header-container">
@@ -79,19 +63,11 @@ function renderCommentsPage(article: HNItem): void {
     ? `<div class="op-comment"><div class="comment-content">${article.text}</div></div>`
     : '';
 
-  const topLevelComments = article.comments || [];
-  const pageComments = topLevelComments.slice(0, COMMENT_PAGE_SIZE);
-  renderedTopLevelCount = pageComments.length;
+  const allComments = article.comments || [];
 
-  const commentsHtml = pageComments.length
-    ? `<ul class="comments-list">${getCommentsHtml(pageComments, article.lastReadComment)}</ul>`
+  const commentsHtml = allComments.length
+    ? `<ul class="comments-list">${getCommentsHtml(allComments, article.lastReadComment)}</ul>`
     : '<p class="no-comments">No comments yet.</p>';
-
-  const totalTopLevel = article.allKids?.length ?? article.comments_count;
-  const remaining = totalTopLevel - renderedTopLevelCount;
-  const loadMoreHtml = !article.allCommentsLoaded && remaining > 0
-    ? getLoadMoreHtml(remaining)
-    : '';
 
   page.innerHTML = `
     ${headerHtml}
@@ -108,56 +84,13 @@ function renderCommentsPage(article: HNItem): void {
         </div>
         ${opHtml}
         ${commentsHtml}
-        ${loadMoreHtml}
       </div>
     </section>
   `;
 
-  // Event delegation for collapse/expand, tap-to-visited, and load-more
+  // Event delegation for collapse/expand
   page.addEventListener('click', (event: MouseEvent) => {
     const target = event.target as HTMLElement;
-
-    // Handle load more comments button
-    const loadMoreBtn = target.closest('.load-more-comments') as HTMLElement | null;
-    if (loadMoreBtn) {
-      event.preventDefault();
-      loadMoreBtn.textContent = 'Loading...';
-      loadMoreBtn.setAttribute('disabled', 'true');
-
-      data.loadMoreComments(article.id, (updatedArticle) => {
-        if (!currentArticle || currentArticle.id !== updatedArticle.id) return;
-        currentArticle = updatedArticle;
-
-        // Append new top-level comments to the list
-        const commentsList = page.querySelector('.comments-list') as HTMLElement | null;
-        if (commentsList) {
-          const newTopLevel = (updatedArticle.comments || []).slice(renderedTopLevelCount);
-          if (newTopLevel.length) {
-            const newHtml = getCommentsHtml(newTopLevel, updatedArticle.lastReadComment);
-            commentsList.insertAdjacentHTML('beforeend', newHtml);
-          }
-        }
-
-        renderedTopLevelCount = updatedArticle.comments?.length ?? 0;
-
-        // Update or remove the load-more button
-        const totalTopLevel = updatedArticle.allKids?.length ?? updatedArticle.comments_count;
-        const remaining = totalTopLevel - renderedTopLevelCount;
-        const container = page.querySelector('.load-more-container') as HTMLElement | null;
-        if (container) {
-          if (updatedArticle.allCommentsLoaded || remaining <= 0) {
-            container.remove();
-          } else {
-            const btn = container.querySelector('.load-more-comments') as HTMLElement | null;
-            if (btn) {
-              btn.textContent = `Load more comments (${remaining} remaining)`;
-              btn.removeAttribute('disabled');
-            }
-          }
-        }
-      });
-      return;
-    }
 
     // Handle collapse toggle button
     const toggleBtn = target.closest('.comment-toggle') as HTMLElement | null;
@@ -178,9 +111,10 @@ function renderCommentsPage(article: HNItem): void {
         if (content) {
           content.style.display = isCollapsed ? 'none' : '';
         }
+        const totalCount = Number(toggleBtn.getAttribute('data-total-count')) || 0;
         toggleBtn.innerHTML = isCollapsed
-          ? `[+] <span class="child-count">${childList?.children.length ?? 0} ${childList?.children.length === 1 ? 'reply' : 'replies'}</span>`
-          : `[-] <span class="child-count">${childList?.children.length ?? 0} ${childList?.children.length === 1 ? 'reply' : 'replies'}</span>`;
+          ? `[+] <span class="child-count">${totalCount} ${totalCount === 1 ? 'reply' : 'replies'}</span>`
+          : `[-] <span class="child-count">${totalCount} ${totalCount === 1 ? 'reply' : 'replies'}</span>`;
       }
       return;
     }
@@ -203,8 +137,6 @@ export function initCommentsPage(): void {
       if (page) {
         setTimeout(() => { page.innerHTML = ''; }, 300);
       }
-      currentArticle = null;
-      renderedTopLevelCount = 0;
     }
   });
 }

@@ -6,6 +6,7 @@ import { perf } from './performance';
 import { escapeHtml } from '../utils/template';
 
 const FIREBASE_BASE = config.url.stories;
+const ALGOLIA_BASE = 'https://hn.algolia.com/api/v1';
 
 let abortController: AbortController | null = null;
 
@@ -81,14 +82,36 @@ function transformItem(fb: FirebaseItem): HNItem {
   };
 }
 
-function transformComment(fb: FirebaseItem): HNComment {
+interface AlgoliaItem {
+  id: number;
+  type: string;
+  author?: string;
+  title?: string;
+  url?: string;
+  text?: string;
+  points?: number;
+  num_comments?: number;
+  children?: AlgoliaItem[];
+  created_at_i?: number;
+  story_id?: number;
+}
+
+function transformAlgoliaComment(item: AlgoliaItem): HNComment {
+  const children = (item.children || [])
+    .filter(c => c.type === 'comment')
+    .map(transformAlgoliaComment);
+
   return {
-    id: fb.id,
-    user: fb.by || '[deleted]',
-    time_ago: fb.time ? timeAgo(fb.time) : '',
-    content: fb.text || '',
-    comments: []
+    id: item.id,
+    user: item.author || '[deleted]',
+    time_ago: item.created_at_i ? timeAgo(item.created_at_i) : '',
+    content: item.text || '',
+    comments: children
   };
+}
+
+async function fetchAlgoliaItem(id: number, signal?: AbortSignal): Promise<AlgoliaItem> {
+  return fetchJson<AlgoliaItem>(`${ALGOLIA_BASE}/items/${id}`, signal);
 }
 
 async function fetchJson<T>(url: string, signal?: AbortSignal): Promise<T> {
@@ -111,34 +134,6 @@ async function fetchItems(ids: number[], signal?: AbortSignal): Promise<Firebase
     results.push(...batchResults);
   }
   return results;
-}
-
-async function fetchCommentTree(
-  kids: number[],
-  signal?: AbortSignal,
-  depth = 0,
-  topLevelLimit?: number
-): Promise<HNComment[]> {
-  if (!kids || kids.length === 0 || depth > 20) return [];
-
-  // Only apply limit at the top level (depth 0)
-  const idsToFetch = (depth === 0 && topLevelLimit !== undefined)
-    ? kids.slice(0, topLevelLimit)
-    : kids;
-
-  const rawItems = await fetchItems(idsToFetch, signal);
-  const comments: HNComment[] = [];
-
-  for (const raw of rawItems) {
-    if (!raw || raw.deleted || raw.dead) continue;
-    const comment = transformComment(raw);
-    if (raw.kids && raw.kids.length > 0) {
-      comment.comments = await fetchCommentTree(raw.kids, signal, depth + 1);
-    }
-    comments.push(comment);
-  }
-
-  return comments;
 }
 
 function mergeVisitedState(items: HNItem[]): void {
@@ -358,18 +353,36 @@ export async function getArticleComments(
     abortController = new AbortController();
     const { signal } = abortController;
 
-    const raw = await fetchItem(id, signal);
+    // Use Algolia API — returns the full comment tree in one request
+    const algoliaItem = await fetchAlgoliaItem(id, signal);
     perf.update(String(id), 'comments-fetch', Date.now() - t0);
 
-    const item = transformItem(raw);
-    item.allKids = raw.kids || [];
-    item.fetchedKidsCount = 0;
+    // Build item from Algolia data (Algolia returns top-level fields differently)
+    const domain = algoliaItem.url ? extractDomain(algoliaItem.url) : '';
+    const item: HNItem = {
+      id: algoliaItem.id,
+      title: escapeHtml(algoliaItem.title || '[deleted]'),
+      points: algoliaItem.points ?? 0,
+      user: escapeHtml(algoliaItem.author || ''),
+      time_ago: algoliaItem.created_at_i ? timeAgo(algoliaItem.created_at_i) : '',
+      url: algoliaItem.url,
+      domain,
+      self: !algoliaItem.url,
+      comments_count: algoliaItem.num_comments ?? 0,
+      text: algoliaItem.text,
+      type: algoliaItem.type,
+      kids: []
+    };
 
-    // Fetch the first page of top-level comments
-    const firstBatch = await fetchCommentTree(raw.kids || [], signal, 0, COMMENT_PAGE_SIZE);
-    item.comments = firstBatch;
-    item.fetchedKidsCount = firstBatch.length;
-    item.allCommentsLoaded = item.fetchedKidsCount >= item.allKids.length;
+    // Transform all comments from the Algolia tree
+    const allComments = (algoliaItem.children || [])
+      .filter(c => c.type === 'comment')
+      .map(transformAlgoliaComment);
+
+    item.allKids = allComments.map(c => c.id);
+    item.comments = allComments;
+    item.fetchedKidsCount = allComments.length;
+    item.allCommentsLoaded = true;
     item.commentsFetchTime = Date.now();
 
     localData.articles[id] = item;
@@ -389,30 +402,10 @@ export async function getArticleComments(
 }
 
 export async function loadMoreComments(
-  id: number,
-  callback?: (data: HNItem) => void
+  _id: number,
+  _callback?: (data: HNItem) => void
 ): Promise<void> {
-  const item = localData.articles[id];
-  if (!item || item.allCommentsLoaded) return;
-
-  try {
-    cancelPendingRequests();
-    abortController = new AbortController();
-    const { signal } = abortController;
-
-    const remainingKids = item.allKids!.slice(item.fetchedKidsCount ?? 0);
-    const nextBatch = await fetchCommentTree(remainingKids, signal, 0, COMMENT_PAGE_SIZE);
-
-    item.comments = [...(item.comments || []), ...nextBatch];
-    item.fetchedKidsCount = (item.fetchedKidsCount ?? 0) + nextBatch.length;
-    item.allCommentsLoaded = item.fetchedKidsCount >= item.allKids!.length;
-
-    if (callback) callback(item);
-  } catch (error) {
-    if ((error as Error).name === 'AbortError') return;
-    console.error('Failed to load more comments:', error);
-    throw error;
-  }
+  // No-op: Algolia API returns all comments in a single request
 }
 
 export function getLocalData(): LocalData {

@@ -25,6 +25,8 @@ function renderAboutPage(): void {
           <p>Version ${config.v.app}</p>
           <h3>Data Source</h3>
           <p>Powered by the official <a href="https://github.com/HackerNews/API" target="_blank" rel="noopener noreferrer">Hacker News Firebase API</a>.</p>
+	          <h3>Open Source Licenses</h3>
+	          <p>Reader mode powered by <a href="https://github.com/mozilla/readability" target="_blank" rel="noopener noreferrer">Mozilla's Readability</a> library, originally by Arc90 Inc, used under the <a href="https://www.apache.org/licenses/LICENSE-2.0" target="_blank" rel="noopener noreferrer">Apache License 2.0</a>.</p>
         </div>
       </div>
     </section>

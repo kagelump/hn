@@ -67,7 +67,7 @@ function parseWithReadability(html: string, url: string): { title: string; bylin
   };
 }
 
-async function loadReaderContent(url: string, container: HTMLElement): Promise<void> {
+async function loadReaderContent(url: string, container: HTMLElement, article: HNItem): Promise<void> {
   try {
     const html = await fetchArticleHtml(url);
     // Bail if the user navigated away while fetching
@@ -79,6 +79,9 @@ async function loadReaderContent(url: string, container: HTMLElement): Promise<v
       container.innerHTML = '<p class="reader-error">Could not extract article content.</p>';
       return;
     }
+
+    // Update the ChatGPT button to include the extracted article content
+    updateChatGptUrl(article, parsed.content);
 
     const bylineHtml = parsed.byline
       ? `<div class="reader-byline">${escapeHtml(parsed.byline)}</div>`
@@ -103,6 +106,23 @@ function getChatGptUrl(article: HNItem): string {
     ? `Summarize the following article:\n\n${article.title}\n${article.url}`
     : `Summarize the following article:\n\n${article.title}\n\n${(article.text || '').replace(/<[^>]*>/g, '')}`;
   return `https://chatgpt.com/?q=${encodeURIComponent(prompt)}`;
+}
+
+function updateChatGptUrl(article: HNItem, contentHtml: string): void {
+  const btn = document.querySelector('.chatgpt-btn') as HTMLAnchorElement | null;
+  if (!btn) return;
+
+  // Strip HTML tags to get plain text
+  const plainText = contentHtml.replace(/<[^>]*>/g, '').trim();
+  const MAX_LEN = 400;
+  const truncated = plainText.length > MAX_LEN
+    ? plainText.slice(0, MAX_LEN) + '…'
+    : plainText;
+
+  const prompt = article.url
+    ? `Summarize the following article:\n\n${article.title}\n${article.url}\n\n${truncated}`
+    : `Summarize the following article:\n\n${article.title}\n\n${truncated}`;
+  btn.href = `https://chatgpt.com/?q=${encodeURIComponent(prompt)}`;
 }
 
 function renderArticlePage(article: HNItem): void {
@@ -184,7 +204,7 @@ function renderArticlePage(article: HNItem): void {
     const readerContainer = page.querySelector('.article-reader') as HTMLElement | null;
 
     if (readerContainer) {
-      loadReaderContent(article.url, readerContainer);
+      loadReaderContent(article.url, readerContainer, article);
     }
 
     if (readerBtn && readerContainer) {

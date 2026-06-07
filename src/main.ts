@@ -327,6 +327,9 @@ function init(): void {
   initAboutPage();
   initPerformancePage();
 
+  // iOS convention: tapping the status bar scrolls the view to the top
+  // The native AppDelegate swizzles UIStatusBarManager and calls scrollTo via evaluateJavaScript
+
   // Load home page on start
   setTimeout(() => {
     if (!window.location.hash || window.location.hash === '#/' || window.location.hash === '#') {

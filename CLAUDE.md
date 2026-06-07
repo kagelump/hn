@@ -77,3 +77,11 @@ Settings are restored on startup in `main.ts` before any page renders.
 - **Unit**: Vitest with jsdom, `src/test/setup.ts` mocks localStorage. Tests in `__tests__/` dirs co-located with source.
 - **E2E**: Playwright in `e2e/app.spec.ts` (7 tests). Auto-starts dev server.
 - Coverage thresholds: 80% lines, 68% branches, 80% functions.
+
+## iOS / Capacitor learnings
+
+- **Status bar tap-to-scroll**: iOS intercepts status bar taps at the OS level — no DOM events fire in WKWebView. The system looks for a native `UIScrollView` with `scrollsToTop = true`, but the app's scroll container is a `div` with `overflow: scroll`, so the tap is silently swallowed. Fixed by swizzling `UIStatusBarManager.handleTapAction:` in `AppDelegate.swift` and calling `evaluateJavaScript` to scroll the web content.
+- **Swift 6 concurrency**: Properties on `UIApplicationDelegate` are main-actor-isolated. Use `nonisolated(unsafe)` for properties captured in `@Sendable` closures (e.g. `NotificationCenter` observers). `WKWebView.evaluateJavaScript` is `@MainActor` — wrap calls in `DispatchQueue.main.async`.
+- **Method swizzling the original IMP**: The block receives the instance (`self`) as its first parameter — don't discard it and pass the class metatype. Use `@convention(c)` function pointer to call the original IMP with the correct instance.
+- **Xcode project edits**: When adding files to `ios/App/App/Plugins/`, the `PBXFileReference` path must include the `Plugins/` prefix relative to the group.
+- **CAPBridgeViewController**: `webView` is a public stored property but not KVC-compliant — can't use `value(forKey:)`. Access directly as `vc.webView`.

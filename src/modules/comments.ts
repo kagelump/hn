@@ -68,7 +68,10 @@ function getHeaderHtml(sortWarning?: string): string {
           <li><a href="#/" class="back-home"><span class="icon icon-arrow-left"></span></a></li>
         </ul>
         <h1>Comments</h1>
-        <ul class="r-menu list-inline menu">${warningBtn}</ul>
+        <ul class="r-menu list-inline menu">
+          <li><button class="share-btn" type="button" aria-label="Summarize with AI"><!-- Lucide "bot-message-square" icon, ISC License --><svg class="header-svg-icon" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 6V2H8"/><path d="M15 11v2"/><path d="M2 12h2"/><path d="M20 12h2"/><path d="M20 16a2 2 0 0 1-2 2H8.828a2 2 0 0 0-1.414.586l-2.202 2.202A.71.71 0 0 1 4 20.286V8a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2z"/><path d="M9 11v2"/></svg></button></li>
+          ${warningBtn}
+        </ul>
       </header>
     </div>
   `;
@@ -97,6 +100,8 @@ function renderCommentsIntoPage(article: HNItem): void {
   const page = document.querySelector('.page-article-comments') as HTMLElement | null;
   if (!page) return;
 
+  page.dataset.articleId = String(article.id);
+
   const allComments = article.comments || [];
   const commentsHtml = allComments.length
     ? `<ul class="comments-list">${getCommentsHtml(allComments, article.lastReadComment)}</ul>`
@@ -124,61 +129,114 @@ function renderCommentsIntoPage(article: HNItem): void {
     ${warningModal}
   `;
 
-  // Event delegation for collapse/expand and warning modal
-  page.addEventListener('click', (event: MouseEvent) => {
-    const target = event.target as HTMLElement;
-
-    // Handle sort warning button
-    if (target.closest('.sort-warning-btn')) {
-      event.preventDefault();
-      const modal = page.querySelector('.sort-warning-modal') as HTMLElement | null;
-      if (modal) {
-        modal.style.display = 'flex';
-      }
-      return;
-    }
-
-    // Handle sort warning modal close
-    if (target.closest('.sort-warning-close')) {
-      event.preventDefault();
-      const modal = target.closest('.sort-warning-modal') as HTMLElement | null;
-      if (modal) {
-        modal.style.display = 'none';
-      }
-      return;
-    }
-
-    // Handle collapse toggle button
-    const toggleBtn = target.closest('.comment-toggle') as HTMLElement | null;
-    if (toggleBtn) {
-      event.preventDefault();
-      const commentId = toggleBtn.getAttribute('data-comment-id');
-      const comment = toggleBtn.closest('.comment') as HTMLElement | null;
-      const childList = comment?.querySelector(`.comment-children[data-parent-id="${commentId}"]`) as HTMLElement | null;
-      const body = toggleBtn.closest('.comment-meta')?.nextElementSibling as HTMLElement | null;
-
-      if (comment && body) {
-        const isCollapsed = comment.classList.toggle('comment-collapsed');
-        if (childList) {
-          childList.style.display = isCollapsed ? 'none' : '';
+  // Add next-thread navigation button
+  const existingBtn = page.querySelector('.next-thread-btn');
+  if (!existingBtn) {
+    const btn = document.createElement('button');
+    btn.className = 'next-thread-btn';
+    btn.innerHTML = '\u25BE';
+    btn.setAttribute('aria-label', 'Next top-level comment');
+    page.appendChild(btn);
+    btn.addEventListener('click', () => {
+      const scrollContainer = page.querySelector('.pagebd-container');
+      if (!scrollContainer) return;
+      const topComments = page.querySelectorAll('.comments-list > .comment');
+      const scrollTop = scrollContainer.scrollTop;
+      for (const comment of topComments) {
+        const el = comment as HTMLElement;
+        if (el.offsetTop > scrollTop + 60) {
+          scrollContainer.scrollTo({ top: el.offsetTop - 10, behavior: 'smooth' });
+          break;
         }
-        // Also hide the comment body content when collapsed
-        const content = body.querySelector('.comment-content') as HTMLElement | null;
-        if (content) {
-          content.style.display = isCollapsed ? 'none' : '';
-        }
-        const totalCount = Number(toggleBtn.getAttribute('data-total-count')) || 0;
-        const countLabel = totalCount > 0
-          ? ` <span class="child-count">${totalCount}</span>`
-          : '';
-        toggleBtn.innerHTML = isCollapsed ? `[+]${countLabel}` : `[-]${countLabel}`;
       }
-      return;
-    }
-  });
+    });
+  }
 }
 
 export function initCommentsPage(): void {
+  const page = document.querySelector('.page-article-comments') as HTMLElement;
+  if (page) {
+    page.addEventListener('click', (event: MouseEvent) => {
+      const target = event.target as HTMLElement;
+
+      // Handle tap on meta row to collapse (excluding the toggle button itself)
+      const metaRow = target.closest('.comment-meta') as HTMLElement | null;
+      if (metaRow && !target.closest('.comment-toggle')) {
+        const toggleBtn = metaRow.querySelector('.comment-toggle') as HTMLElement | null;
+        if (toggleBtn) toggleBtn.click();
+        return;
+      }
+
+      // Handle AI summarize button
+      if (target.closest('.share-btn')) {
+        event.preventDefault();
+        const titleEl = page.querySelector('.article-header h2');
+        const title = titleEl?.textContent?.trim() || '';
+        const commentEls = page.querySelectorAll('.comments-list .comment-content');
+        const comments = Array.from(commentEls).map(el => (el.textContent || '').trim()).filter(Boolean);
+        const body = comments.join('\n\n');
+        const articleId = page.dataset.articleId;
+        const hnLink = articleId ? `https://news.ycombinator.com/item?id=${articleId}` : '';
+        const text = `Summarize the following discussion:\n\n${title}\n${hnLink}\n\n${body}`;
+        if (navigator.share) {
+          navigator.share({ title, text }).catch(() => {});
+        } else {
+          navigator.clipboard.writeText(text).then(() => {
+            alert('Discussion copied to clipboard.');
+          }).catch(() => {});
+        }
+        return;
+      }
+
+      // Handle sort warning button
+      if (target.closest('.sort-warning-btn')) {
+        event.preventDefault();
+        const modal = page.querySelector('.sort-warning-modal') as HTMLElement | null;
+        if (modal) {
+          modal.style.display = 'flex';
+        }
+        return;
+      }
+
+      // Handle sort warning modal close
+      if (target.closest('.sort-warning-close')) {
+        event.preventDefault();
+        const modal = target.closest('.sort-warning-modal') as HTMLElement | null;
+        if (modal) {
+          modal.style.display = 'none';
+        }
+        return;
+      }
+
+      // Handle collapse toggle button
+      const toggleBtn = target.closest('.comment-toggle') as HTMLElement | null;
+      if (toggleBtn) {
+        event.preventDefault();
+        const commentId = toggleBtn.getAttribute('data-comment-id');
+        const comment = toggleBtn.closest('.comment') as HTMLElement | null;
+        const childList = comment?.querySelector(`.comment-children[data-parent-id="${commentId}"]`) as HTMLElement | null;
+        const body = toggleBtn.closest('.comment-meta')?.nextElementSibling as HTMLElement | null;
+
+        if (comment && body) {
+          const isCollapsed = comment.classList.toggle('comment-collapsed');
+          if (childList) {
+            childList.style.display = isCollapsed ? 'none' : '';
+          }
+          const content = body.querySelector('.comment-content') as HTMLElement | null;
+          if (content) {
+            content.style.display = isCollapsed ? 'none' : '';
+          }
+          const totalCount = Number(toggleBtn.getAttribute('data-total-count')) || 0;
+          const countLabel = totalCount > 0
+            ? ` <span class="child-count">${totalCount}</span>`
+            : '';
+          toggleBtn.innerHTML = isCollapsed ? `[+]${countLabel}` : `[-]${countLabel}`;
+        }
+        return;
+      }
+    });
+  }
+
   PubSub.subscribe('show-comments', (id: unknown) => {
     const articleId = Number(id);
     showPage('page-article-comments', 'Comments');
@@ -214,7 +272,7 @@ export function initCommentsPage(): void {
     if (typeof className === 'string' && className.includes('page-article-comments')) {
       const page = document.querySelector('.page-article-comments');
       if (page) {
-        setTimeout(() => { page.innerHTML = ''; }, 300);
+        setTimeout(() => { page.innerHTML = ''; }, 450);
       }
     }
   });

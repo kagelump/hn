@@ -6,15 +6,30 @@ type PageClass = string;
 
 export function showPage(pageClass: PageClass, title?: string): void {
   const pages = document.querySelectorAll('.page');
+  const incomingIsHome = pageClass === 'page-home';
+
   pages.forEach(page => {
     if (page.classList.contains('show-page')) {
+      const isBack = incomingIsHome;
       page.classList.remove('show-page');
+      // Clear any inline transforms (e.g. from swipe gesture) so CSS classes take effect
+      (page as HTMLElement).style.transform = '';
+      (page as HTMLElement).style.webkitTransform = '';
+      page.classList.add(isBack ? 'exit-right' : 'exit-left');
+      const el = page as HTMLElement;
+      const cleanup = () => {
+        el.classList.remove('exit-left', 'exit-right');
+        el.removeEventListener('transitionend', cleanup);
+      };
+      el.addEventListener('transitionend', cleanup, { once: true });
+      setTimeout(() => el.classList.remove('exit-left', 'exit-right'), 500);
       PubSub.publish('onPageHidden', page.className);
     }
   });
 
   const target = document.querySelector(`.${pageClass}`) as HTMLElement | null;
   if (target) {
+    target.classList.remove('exit-left', 'exit-right');
     target.classList.add('show-page');
   }
 

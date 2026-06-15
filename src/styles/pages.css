@@ -19,7 +19,7 @@
     left: 0;
     right: 0;
     bottom: 0;
-    background: var(--theme-color);
+    background: var(--page-bg, #fff);
     opacity: 1;
     z-index: 1;
     -webkit-transform: translate3d(100%, 0, 0);
@@ -56,6 +56,28 @@
     -moz-transform: translate3d(0, 0, 0);
     -ms-transform: translate3d(0, 0, 0);
     transform: translate3d(0, 0, 0);
+}
+
+.pages-container > .page.exit-left {
+    z-index: 4;
+    transform: translate3d(-100%, 0, 0);
+    -webkit-transform: translate3d(-100%, 0, 0);
+}
+
+.pages-container > .page.exit-right {
+    z-index: 4;
+    transform: translate3d(100%, 0, 0);
+    -webkit-transform: translate3d(100%, 0, 0);
+}
+
+.pages-container > .page.swiping {
+    transition: none !important;
+    -webkit-transition: none !important;
+}
+
+.pages-container > .page.swipe-settle {
+    transition: transform 200ms ease-out !important;
+    -webkit-transition: -webkit-transform 200ms ease-out !important;
 }
 
 .android-chrome .pages-container .show-page {
@@ -301,88 +323,7 @@
 
 
 
-.article-comments {
-    background: rgba(255,255,255,0.95);
-    overflow: hidden;
-    min-height: 60%;
-}
 
-.article-comments .time-ago {
-    display: inline-block;
-    padding: 7px 5px 10px;
-}
-.article-comments .author {
-    display: inline-block;
-    padding: 7px 10px 10px;
-    color: var(--theme-color);
-}
-.article-comments .icon {
-    padding: 8px 0 8px 5px;
-    opacity: 0.6;
-    vertical-align: middle;
-    font-size: 85%;
-}
-.article-comments .text {
-    padding: 5px 5px 5px 0;
-    vertical-align: middle;
-    line-height: 1;
-}
-.article-comments .op .icon {
-    display: none;
-}
-.article-comments .op .text {
-    padding-left: 5px;
-    margin-left: 5px;
-    background: var(--theme-color);
-    color: #fff;
-}
-.article-comments time {
-    color: #888;
-}
-.article-comments ul {
-    margin: 0;
-    padding: 0;
-    list-style: none;
-}
-.article-comments li {
-    border-top: 1px solid rgba(0,0,0,0.05);
-}
-.article-comments ul ul {
-    border-left: 15px solid rgba(0,0,0,0.05);
-}
-.article-comments ul ul ul{
-    border-color: rgba(0,0,0,0.07);
-}
-.article-comments ul ul ul ul {
-    border-color: rgba(0,0,0,0.09);
-}
-.article-comments ul ul ul ul ul {
-    border-color: rgba(0,0,0,0.11);
-}
-.article-comments .comment {
-    padding: 0 0 10px 15px;
-    margin: -10px 0 0;
-}
-
-.hide-comment-visited .article-comments .comment-visited {
-    display: none;
-}
-
-.article-comments .comment a {
-    -ms-word-break: break-all;
-    word-break: break-all;
-
-    /* Non standard for webkit */
-    word-break: break-word;
-
-    -webkit-hyphens: auto;
-    -moz-hyphens: auto;
-    hyphens: auto;
-}
-
-.article-comments .comment p {
-    margin: 5px 0;
-}
 
 .page-performance .bd {
     padding: 15px;
@@ -454,6 +395,27 @@
 .comment-toggle:hover {
     background: rgba(0,0,0,0.05);
 }
+.next-thread-btn {
+    position: fixed;
+    bottom: 80px;
+    right: 16px;
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    background: var(--theme-color);
+    color: #fff;
+    border: none;
+    font-size: 18px;
+    line-height: 36px;
+    text-align: center;
+    cursor: pointer;
+    z-index: 50;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+    opacity: 0.85;
+}
+.next-thread-btn:hover {
+    opacity: 1;
+}
 .comment-toggle .child-count {
     font-family: inherit;
 }
@@ -468,6 +430,10 @@
 .comment-content a {
     color: var(--theme-color);
     word-break: break-all;
+}
+.comment-content pre {
+    overflow-x: auto;
+    max-width: 100%;
 }
 .comment-collapsed {
     opacity: 0.6;
@@ -659,8 +625,9 @@
 .radio-dot.selected::after {
     content: '';
     position: absolute;
-    top: 3px;
-    left: 3px;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
     width: 8px;
     height: 8px;
     border-radius: 50%;
@@ -774,16 +741,6 @@
 .article-link a {
     color: var(--theme-color);
     word-break: break-all;
-}
-
-.page-settings li {
-    position: relative;
-}
-
-.page-settings li a {
-    display: block;
-    padding: 10px 10px 10px 40px;
-    border-bottom: 1px solid rgba(0,0,0,0.06);
 }
 
 .page-settings .version {

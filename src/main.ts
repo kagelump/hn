@@ -96,7 +96,7 @@ function setupClickHandlers(): void {
     // Handle reload
     if (link.classList.contains('reload') || link.closest('.reload')) {
       event.preventDefault();
-      loading.show(event.clientX, event.clientY);
+      loading.show();
       PubSub.publish('reload-home');
       return;
     }
@@ -104,42 +104,42 @@ function setupClickHandlers(): void {
     // Handle submenu items BEFORE toggle (items are inside .toggle-submenu)
     if (link.classList.contains('filter-fp')) {
       event.preventDefault();
-      loading.show(event.clientX, event.clientY);
+      loading.show();
       PubSub.publish('load-home');
       closeSubmenu();
       return;
     }
     if (link.classList.contains('filter-ask-hn')) {
       event.preventDefault();
-      loading.show(event.clientX, event.clientY);
+      loading.show();
       PubSub.publish('filter-home', 'ask');
       closeSubmenu();
       return;
     }
     if (link.classList.contains('filter-show-hn')) {
       event.preventDefault();
-      loading.show(event.clientX, event.clientY);
+      loading.show();
       PubSub.publish('filter-home', 'show');
       closeSubmenu();
       return;
     }
     if (link.classList.contains('filter-today-top-10')) {
       event.preventDefault();
-      loading.show(event.clientX, event.clientY);
+      loading.show();
       PubSub.publish('filter-home', 'todayTop10');
       closeSubmenu();
       return;
     }
     if (link.classList.contains('filter-yesterday-top-10')) {
       event.preventDefault();
-      loading.show(event.clientX, event.clientY);
+      loading.show();
       PubSub.publish('filter-home', 'yesterdayTop10');
       closeSubmenu();
       return;
     }
     if (link.classList.contains('filter-week-top-10')) {
       event.preventDefault();
-      loading.show(event.clientX, event.clientY);
+      loading.show();
       PubSub.publish('filter-home', 'weekTop10');
       closeSubmenu();
       return;
@@ -173,28 +173,152 @@ function closeSubmenu(): void {
 
 // Swipe-to-go-back gesture
 function setupSwipeGesture(): void {
+  // Parallax factor for the previous page revealed underneath the swipe (iOS uses ~0.3)
+  const PARALLAX = 0.3;
+
   let startX = 0;
   let startY = 0;
-  const SWIPE_THRESHOLD = 50;
+  let startTime = 0;
+  let currentPage: HTMLElement | null = null;
+  let prevPage: HTMLElement | null = null;
+  let swiping = false;
+
+  // True only if the touch began inside an element the user can actually scroll
+  // horizontally (overflow-x auto/scroll). `overflow-x: hidden` containers clip
+  // their content but are NOT user-scrollable, so they must not block the gesture.
+  function startsInHorizontalScroller(el: Element | null): boolean {
+    let node: Element | null = el;
+    while (node && node !== document.body) {
+      const overflowX = getComputedStyle(node).overflowX;
+      if ((overflowX === 'auto' || overflowX === 'scroll') &&
+          node.scrollWidth > node.clientWidth + 1) {
+        return true;
+      }
+      node = node.parentElement;
+    }
+    return false;
+  }
+
+  // Position the previous page for the given progress (0 = swipe start, 1 = fully revealed)
+  function setPrevParallax(progress: number): void {
+    if (!prevPage) return;
+    const offset = -window.innerWidth * PARALLAX * (1 - progress);
+    prevPage.style.transform = `translate3d(${offset}px, 0, 0)`;
+    prevPage.style.webkitTransform = `translate3d(${offset}px, 0, 0)`;
+  }
 
   document.addEventListener('touchstart', (e: TouchEvent) => {
-    startX = e.touches[0].clientX;
-    startY = e.touches[0].clientY;
+    const touch = e.touches[0];
+    startX = touch.clientX;
+    startY = touch.clientY;
+    startTime = Date.now();
+    swiping = false;
+    prevPage = null;
+
+    const homePage = document.querySelector('.page-home') as HTMLElement | null;
+    if (homePage?.classList.contains('show-page')) {
+      currentPage = null;
+      return;
+    }
+
+    if (startX < 30 && !startsInHorizontalScroller(e.target as Element)) {
+      currentPage = document.querySelector('.show-page') as HTMLElement | null;
+      // The back gesture returns to home, so home is the page revealed underneath
+      prevPage = homePage;
+    } else {
+      currentPage = null;
+    }
   }, { passive: true });
 
-  document.addEventListener('touchend', (e: TouchEvent) => {
-    const endX = e.changedTouches[0].clientX;
-    const endY = e.changedTouches[0].clientY;
-    const deltaX = endX - startX;
-    const deltaY = Math.abs(endY - startY);
+  document.addEventListener('touchmove', (e: TouchEvent) => {
+    if (!currentPage) return;
 
-    // Only trigger if: horizontal swipe, left-to-right, significant distance, not on home page
-    if (deltaX > SWIPE_THRESHOLD && deltaY < 80 && startX < 30) {
-      const homePage = document.querySelector('.page-home');
-      if (homePage && !homePage.classList.contains('show-page')) {
-        goBack();
+    const touch = e.touches[0];
+    const deltaX = touch.clientX - startX;
+    const deltaY = Math.abs(touch.clientY - startY);
+
+    if (!swiping) {
+      if (deltaX > 10 && deltaX > deltaY) {
+        swiping = true;
+        currentPage.classList.add('swiping');
+        prevPage?.classList.add('swiping');
+      } else if (deltaY > 10) {
+        currentPage = null;
+        prevPage = null;
+        return;
+      } else {
+        return;
       }
     }
+
+    e.preventDefault();
+    const clampedX = Math.max(0, deltaX);
+    currentPage.style.transform = `translate3d(${clampedX}px, 0, 0)`;
+    currentPage.style.webkitTransform = `translate3d(${clampedX}px, 0, 0)`;
+    setPrevParallax(clampedX / window.innerWidth);
+  }, { passive: false });
+
+  document.addEventListener('touchend', (e: TouchEvent) => {
+    if (!currentPage || !swiping) {
+      currentPage = null;
+      prevPage = null;
+      swiping = false;
+      return;
+    }
+
+    const endX = e.changedTouches[0].clientX;
+    const deltaX = endX - startX;
+    const duration = Date.now() - startTime;
+    const velocity = deltaX / duration;
+    const viewportWidth = window.innerWidth;
+    const pastThreshold = deltaX > viewportWidth * 0.4 || velocity > 0.5;
+
+    currentPage.classList.remove('swiping');
+    currentPage.classList.add('swipe-settle');
+    prevPage?.classList.remove('swiping');
+    prevPage?.classList.add('swipe-settle');
+
+    const page = currentPage;
+    const prev = prevPage;
+
+    if (pastThreshold) {
+      page.style.transform = `translate3d(${viewportWidth}px, 0, 0)`;
+      page.style.webkitTransform = `translate3d(${viewportWidth}px, 0, 0)`;
+      setPrevParallax(1); // bring previous page fully into view
+      const onEnd = () => {
+        page.removeEventListener('transitionend', onEnd);
+        page.classList.remove('swipe-settle');
+        // Navigate first (home gets `show-page` at translate 0, matching our inline
+        // transform), then clear the inline transform so the class takes over seamlessly.
+        goBack();
+        if (prev) {
+          prev.classList.remove('swipe-settle');
+          prev.style.transform = '';
+          prev.style.webkitTransform = '';
+        }
+      };
+      page.addEventListener('transitionend', onEnd);
+    } else {
+      page.style.transform = 'translate3d(0, 0, 0)';
+      page.style.webkitTransform = 'translate3d(0, 0, 0)';
+      setPrevParallax(0); // send previous page back to its parked parallax offset
+      const onEnd = () => {
+        page.removeEventListener('transitionend', onEnd);
+        page.classList.remove('swipe-settle');
+        page.style.transform = '';
+        page.style.webkitTransform = '';
+        if (prev) {
+          prev.classList.remove('swipe-settle');
+          prev.style.transform = '';
+          prev.style.webkitTransform = '';
+        }
+      };
+      page.addEventListener('transitionend', onEnd);
+    }
+
+    currentPage = null;
+    prevPage = null;
+    swiping = false;
   }, { passive: true });
 }
 
@@ -331,11 +455,9 @@ function init(): void {
   // The native AppDelegate swizzles UIStatusBarManager and calls scrollTo via evaluateJavaScript
 
   // Load home page on start
-  setTimeout(() => {
-    if (!window.location.hash || window.location.hash === '#/' || window.location.hash === '#') {
-      PubSub.publish('load-home');
-    }
-  }, 100);
+  if (!window.location.hash || window.location.hash === '#/' || window.location.hash === '#') {
+    PubSub.publish('load-home');
+  }
 }
 
 // Start the app when DOM is ready

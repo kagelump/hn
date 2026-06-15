@@ -14,9 +14,8 @@ class LoadingIndicator {
     }
   }
 
-  show(x: number, y: number): void {
+  show(): void {
     if (this.node) {
-      this.node.setAttribute('style', `top: ${y}px; left: ${x}px;`);
       this.node.className = this.CLASS_SHOW_LOADING;
     }
   }

@@ -7,9 +7,25 @@
 .theme-dark .header .submenu {
     background: #282828;
 }
+.theme-dark {
+    color-scheme: dark;
+}
 .theme-dark body {
     background: #222;
     color: #999;
+}
+.theme-dark .pagebd-container::-webkit-scrollbar {
+    width: 6px;
+}
+.theme-dark .pagebd-container::-webkit-scrollbar-track {
+    background: transparent;
+}
+.theme-dark .pagebd-container::-webkit-scrollbar-thumb {
+    background: rgba(255,255,255,0.2);
+    border-radius: 3px;
+}
+.theme-dark .pagebd-container::-webkit-scrollbar-thumb:hover {
+    background: rgba(255,255,255,0.35);
 }
 .theme-dark .header h1 {
     color: rgba(255,255,255,0.3);

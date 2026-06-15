@@ -15,16 +15,11 @@ function getCorsProxyUrl(): string {
 }
 
 async function fetchArticleHtml(url: string): Promise<string> {
-  console.log('[Reader] Fetching article:', url);
-  console.log('[Reader] Platform:', Capacitor.getPlatform(), 'isNative:', Capacitor.isNativePlatform());
-
   // On native platforms, use CapacitorHttp (no CORS needed)
   if (Capacitor.isNativePlatform()) {
     try {
-      console.log('[Reader] Calling CapacitorHttp.get...');
       const result = await CapacitorHttp.get({ url, responseType: 'text' });
       const html = result.data as string;
-      console.log('[Reader] Native result: html length:', html?.length ?? 0);
       if (html) {
         return html;
       }
@@ -36,7 +31,6 @@ async function fetchArticleHtml(url: string): Promise<string> {
   // Web fallback: use CORS proxy
   const proxy = getCorsProxyUrl();
   const proxyUrl = proxy + encodeURIComponent(url);
-  console.log('[Reader] Using CORS proxy:', proxyUrl);
   const response = await fetch(proxyUrl);
   if (!response.ok) {
     throw new Error(`Failed to fetch article: ${response.status}`);
@@ -45,7 +39,6 @@ async function fetchArticleHtml(url: string): Promise<string> {
 }
 
 function parseWithReadability(html: string, url: string): { title: string; byline: string; content: string } | null {
-  console.log('[Reader] Parsing with Readability, HTML length:', html.length);
   const doc = new DOMParser().parseFromString(html, 'text/html');
   // Rewrite relative URLs to absolute
   const base = doc.createElement('base');
@@ -59,7 +52,6 @@ function parseWithReadability(html: string, url: string): { title: string; bylin
     return null;
   }
 
-  console.log('[Reader] Readability parsed successfully:', article.title, 'content length:', article.content?.length);
   return {
     title: article.title || '',
     byline: article.byline || '',
@@ -99,53 +91,43 @@ async function loadReaderContent(url: string, container: HTMLElement): Promise<v
 }
 
 async function shareArticle(): Promise<void> {
-  console.log('[Share] shareArticle called');
-
   const page = document.querySelector('.page-article-content') as HTMLElement | null;
-  console.log('[Share] page found:', !!page);
   if (!page) return;
 
   const titleEl = page.querySelector('.article-header h2');
   const title = titleEl?.textContent?.trim() || '';
-  console.log('[Share] title:', title);
 
   const linkEl = page.querySelector('.article-link a') as HTMLAnchorElement | null;
   const url = linkEl?.href || '';
-  console.log('[Share] url:', url);
 
   // Gather full article content from reader view or self-post
   const contentEl = page.querySelector('.reader-content') || page.querySelector('.article-content');
   const bodyText = contentEl ? (contentEl.textContent || '').trim() : '';
-  console.log('[Share] bodyText length:', bodyText.length);
+
+  const articleId = page.dataset.articleId;
+  const hnLink = articleId ? `https://news.ycombinator.com/item?id=${articleId}` : '';
 
   const shareText = url
-    ? `Summarize the following article:\n\n${title}\n${url}\n\n${bodyText}`
-    : `Summarize the following article:\n\n${title}\n\n${bodyText}`;
-  console.log('[Share] shareText length:', shareText.length);
-
-  console.log('[Share] navigator.share available:', !!navigator.share);
+    ? `Summarize the following article:\n\n${title}\n${url}\n${hnLink}\n\n${bodyText}`
+    : `Summarize the following article:\n\n${title}\n${hnLink}\n\n${bodyText}`;
 
   if (navigator.share) {
     try {
-      console.log('[Share] calling navigator.share...');
       await navigator.share({
         title,
         text: shareText,
         url: url || undefined
       });
-      console.log('[Share] share succeeded');
     } catch (err) {
-      console.log('[Share] share error/cancelled:', err);
+      // Share cancelled or failed
     }
   } else {
     // Fallback: copy full content to clipboard
-    console.log('[Share] navigator.share not available, trying clipboard...');
     try {
       await navigator.clipboard.writeText(shareText);
-      console.log('[Share] clipboard write succeeded');
       alert('Article content copied to clipboard.');
     } catch (clipErr) {
-      console.log('[Share] clipboard failed:', clipErr);
+      // Clipboard write failed
     }
   }
 }
@@ -154,6 +136,7 @@ function renderArticlePage(article: HNItem): void {
   const page = document.querySelector('.page-article-content') as HTMLElement | null;
   if (!page) return;
 
+  page.dataset.articleId = String(article.id);
   const hasExternalUrl = !!article.url;
 
   const headerHtml = `
@@ -164,8 +147,7 @@ function renderArticlePage(article: HNItem): void {
         </ul>
         <h1>Article</h1>
         <ul class="r-menu list-inline menu">
-          ${hasExternalUrl ? `<li><button class="reader-toggle active" type="button" aria-label="Toggle reader view"><span class="icon icon-newspaper"></span></button></li>` : ''}
-          <li><button class="share-btn" type="button" aria-label="Share article"><span class="icon icon-share"></span></button></li>
+          <li><button class="share-btn" type="button" aria-label="Summarize with AI"><!-- Lucide "bot-message-square" icon, ISC License --><svg class="header-svg-icon" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 6V2H8"/><path d="M15 11v2"/><path d="M2 12h2"/><path d="M20 12h2"/><path d="M20 16a2 2 0 0 1-2 2H8.828a2 2 0 0 0-1.414.586l-2.202 2.202A.71.71 0 0 1 4 20.286V8a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2z"/><path d="M9 11v2"/></svg></button></li>
           <li><a href="#/comments/${article.id}" class="show-comments"><span class="icon icon-bubble"></span></a></li>
         </ul>
       </header>
@@ -224,44 +206,18 @@ function renderArticlePage(article: HNItem): void {
 
   // Share button click handler
   const shareBtn = page.querySelector('.share-btn') as HTMLElement | null;
-  console.log('[Share] shareBtn found:', !!shareBtn, 'tag:', shareBtn?.tagName);
   if (shareBtn) {
     shareBtn.addEventListener('click', (event: MouseEvent) => {
-      console.log('[Share] button clicked, target:', (event.target as HTMLElement).tagName, 'class:', (event.target as HTMLElement).className);
       event.preventDefault();
       shareArticle();
     });
-    // Also listen for touch events for debugging
-    shareBtn.addEventListener('touchstart', (event: TouchEvent) => {
-      console.log('[Share] button touchstart, target:', (event.target as HTMLElement).tagName);
-    }, { passive: true });
-  } else {
-    console.log('[Share] ERROR: shareBtn not found in DOM');
   }
 
-  // For external articles: auto-load reader content + toggle button
+  // For external articles: auto-load reader content
   if (hasExternalUrl && article.url) {
-    const readerBtn = page.querySelector('.reader-toggle') as HTMLElement | null;
     const readerContainer = page.querySelector('.article-reader') as HTMLElement | null;
-
     if (readerContainer) {
       loadReaderContent(article.url, readerContainer);
-    }
-
-    if (readerBtn && readerContainer) {
-      let readerActive = true;
-
-      readerBtn.addEventListener('click', () => {
-        if (readerActive) {
-          readerContainer.classList.remove('active');
-          readerBtn.classList.remove('active');
-          readerActive = false;
-        } else {
-          readerContainer.classList.add('active');
-          readerBtn.classList.add('active');
-          readerActive = true;
-        }
-      });
     }
   }
 }
@@ -280,7 +236,7 @@ export function initArticlePage(): void {
     if (typeof className === 'string' && className.includes('page-article-content')) {
       const page = document.querySelector('.page-article-content');
       if (page) {
-        setTimeout(() => { page.innerHTML = ''; }, 300);
+        setTimeout(() => { page.innerHTML = ''; }, 450);
       }
     }
   });

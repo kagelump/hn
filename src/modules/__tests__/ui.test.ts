@@ -14,30 +14,23 @@ describe('LoadingIndicator', () => {
   });
 
   it('becomes visible after show()', () => {
-    loading.show(100, 200);
+    loading.show();
     expect(loading.isVisible()).toBe(true);
   });
 
-  it('sets position style on show()', () => {
-    loading.show(150, 250);
-    const node = document.getElementById('loading');
-    expect(node?.style.top).toBe('250px');
-    expect(node?.style.left).toBe('150px');
+  it('sets className to show-loading on show()', () => {
+    loading.show();
+    expect(document.getElementById('loading')?.className).toBe('show-loading');
   });
 
   it('hides after show()', () => {
-    loading.show(0, 0);
+    loading.show();
     loading.hide();
     expect(loading.isVisible()).toBe(false);
   });
 
-  it('sets className to show-loading on show()', () => {
-    loading.show(0, 0);
-    expect(document.getElementById('loading')?.className).toBe('show-loading');
-  });
-
   it('clears className on hide()', () => {
-    loading.show(0, 0);
+    loading.show();
     loading.hide();
     expect(document.getElementById('loading')?.className).toBe('');
   });

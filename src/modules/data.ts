@@ -5,6 +5,7 @@ import { config } from '../config';
 import { store } from '../utils/storage';
 import { perf } from './performance';
 import { escapeHtml } from '../utils/template';
+import { loading } from './ui';
 
 const FIREBASE_BASE = config.url.stories;
 const ALGOLIA_BASE = 'https://hn.algolia.com/api/v1';
@@ -357,10 +358,12 @@ export async function getArticles(callback?: (data: HNItem[]) => void, reload = 
     const { signal } = abortController;
 
     resetCache();
+    loading.setStatus('Fetching story list…');
     const allIds = await fetchStoryIds(STORY_ENDPOINTS.fp, signal);
     const firstPage = allIds.slice(0, PAGE_SIZE);
     pendingIds = allIds.slice(PAGE_SIZE);
 
+    loading.setStatus(`Loading stories 1–${firstPage.length} of ${allIds.length}…`);
     const rawItems = await fetchItems(firstPage, signal);
     const items = rawItems.filter(Boolean).map(transformItem);
     mergeVisitedState(items);
@@ -368,8 +371,10 @@ export async function getArticles(callback?: (data: HNItem[]) => void, reload = 
     localData.list = items;
     store.set('list', { data: items, timestamp: Date.now() });
 
+    loading.clearStatus();
     if (callback) callback(items);
   } catch (error) {
+    loading.clearStatus();
     if ((error as Error).name === 'AbortError') return;
     console.error('Failed to fetch articles:', error);
     throw error;
@@ -412,18 +417,22 @@ export async function getArticlesByType(
     abortController = new AbortController();
     const { signal } = abortController;
 
+    loading.setStatus('Fetching story list…');
     const allIds = await fetchStoryIds(endpoint, signal);
     const firstPage = allIds.slice(0, PAGE_SIZE);
     pendingIds = allIds.slice(PAGE_SIZE);
 
+    loading.setStatus(`Loading stories 1–${firstPage.length} of ${allIds.length}…`);
     const rawItems = await fetchItems(firstPage, signal);
     const items = rawItems.filter(Boolean).map(transformItem);
     mergeVisitedState(items);
 
     localData.list = items;
 
+    loading.clearStatus();
     if (callback) callback(items);
   } catch (error) {
+    loading.clearStatus();
     if ((error as Error).name === 'AbortError') return;
     console.error(`Failed to fetch ${type} articles:`, error);
     throw error;

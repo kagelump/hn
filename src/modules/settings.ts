@@ -87,6 +87,13 @@ function applyHideReadComments(hide: boolean): void {
   store.set('hideReadComment', hide ? 'yes' : 'no');
 }
 
+function applyTextBrightness(brightness: number): void {
+  const html = document.querySelector('html');
+  if (!html) return;
+  html.style.setProperty('--text-brightness', `${brightness}`);
+  store.set('textBrightness', brightness);
+}
+
 function renderSettingsPage(): void {
   const page = document.querySelector('.page-settings') as HTMLElement | null;
   if (!page) return;
@@ -97,6 +104,7 @@ function renderSettingsPage(): void {
   const currentThemeColor = store.get<string>('themeColor') || '#ff6600';
   const animationEnabled = store.get<string>('animation') !== 'no';
   const hideRead = store.get<string>('hideReadComment') || 'yes';
+  const currentTextBrightness = store.get<number>('textBrightness') ?? 50;
   const isNative = Capacitor.isNativePlatform();
   const corsProxy = store.get<string>('corsProxy') || 'https://api.allorigins.win/raw?url=';
 
@@ -143,6 +151,14 @@ function renderSettingsPage(): void {
           <div class="text-size-control">
             <input type="range" id="text-size-slider" min="13" max="23" value="${currentTextSize}" class="text-size-slider">
             <span class="text-size-value">${currentTextSize}px</span>
+          </div>
+        </div>
+
+        <div class="settings-section">
+          <h3 class="settings-section-title">Text Brightness</h3>
+          <div class="text-size-control">
+            <input type="range" id="text-brightness-slider" min="0" max="100" value="${currentTextBrightness}" class="text-size-slider">
+            <span class="text-size-value" id="text-brightness-value">${currentTextBrightness}%</span>
           </div>
         </div>
 
@@ -213,6 +229,15 @@ function renderSettingsPage(): void {
     if (sliderValue) sliderValue.textContent = `${size}px`;
   });
 
+  // Text brightness slider
+  const brightnessSlider = page.querySelector('#text-brightness-slider') as HTMLInputElement | null;
+  const brightnessValue = page.querySelector('#text-brightness-value') as HTMLElement | null;
+  brightnessSlider?.addEventListener('input', () => {
+    const val = Number(brightnessSlider.value);
+    applyTextBrightness(val);
+    if (brightnessValue) brightnessValue.textContent = `${val}%`;
+  });
+
   // Theme radio buttons
   page.querySelectorAll('[data-theme]').forEach(el => {
     el.addEventListener('click', () => {
@@ -220,6 +245,9 @@ function renderSettingsPage(): void {
       applyTheme(theme);
       page.querySelectorAll('[data-theme] .radio-dot').forEach(d => d.classList.remove('selected'));
       el.querySelector('.radio-dot')?.classList.add('selected');
+      // Re-apply text brightness since mapping differs by theme
+      const currentBrightness = store.get<number>('textBrightness') ?? 50;
+      applyTextBrightness(currentBrightness);
     });
   });
 

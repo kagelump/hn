@@ -56,6 +56,12 @@ if (htmlNode) {
     htmlNode.setAttribute('data-theme-color', themeColor);
   }
 
+  // Text brightness
+  const textBrightness = store.get<number>('textBrightness');
+  if (textBrightness != null) {
+    htmlNode.style.setProperty('--text-brightness', `${textBrightness}`);
+  }
+
   // Animation
   const animation = store.get<string>('animation');
   if (animation === 'no') {

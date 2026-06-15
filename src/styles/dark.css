@@ -9,10 +9,11 @@
 }
 .theme-dark {
     color-scheme: dark;
+    --text-color: hsl(0, 0%, calc(45% + var(--text-brightness) * 0.3%));
 }
 .theme-dark body {
     background: #222;
-    color: #999;
+    color: var(--text-color);
 }
 .theme-dark .pagebd-container::-webkit-scrollbar {
     width: 6px;
@@ -59,7 +60,7 @@
 
 .theme-dark .article-meta h3,
 .theme-dark .page-home .bd h3 {
-    color: #aaa;
+    color: var(--text-color);
 }
 
 .theme-dark .page-home .bd .points {
@@ -145,7 +146,7 @@
     border-color: rgba(255,255,255,0.2);
 }
 .theme-dark .radio-label {
-    color: #ccc;
+    color: var(--text-color);
 }
 .theme-dark .text-size-value {
     color: #999;
@@ -168,8 +169,13 @@
 .theme-dark .settings-text-input {
     background: #111;
     border-color: rgba(255,255,255,0.15);
-    color: #ccc;
+    color: var(--text-color);
 }
 .theme-dark .setting-item-inline {
-    color: #ccc;
+    color: var(--text-color);
+}
+.theme-dark #loading-status {
+    color: #999;
+    background: rgba(34, 34, 34, 0.9);
+    box-shadow: 0 1px 4px rgba(0, 0, 0, 0.3);
 }

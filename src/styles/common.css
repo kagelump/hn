@@ -49,6 +49,8 @@ html, body {
 html {
     font-size: 15px;
     --theme-color: #ff6600;
+    --text-brightness: 50;
+    --text-color: hsl(210, 8%, calc(15% + var(--text-brightness) * 0.2%));
 }
 
 .no-animation,
@@ -62,7 +64,7 @@ body {
     padding: 0;
     font-family: inherit;
     line-height: 1.618;
-    color: #33393f;
+    color: var(--text-color);
     -webkit-font-smoothing: antialiased;
     font-size: inherit;
 }
@@ -131,6 +133,21 @@ h3,
     left: 50%;
     transform: translate(-50%, -50%);
     margin: 0;
+}
+#loading-status {
+    display: none;
+    position: fixed;
+    z-index: 1000;
+    top: calc(50% + 24px);
+    left: 50%;
+    transform: translateX(-50%);
+    color: #666;
+    font-size: 13px;
+    white-space: nowrap;
+    background: rgba(255, 255, 255, 0.9);
+    padding: 6px 14px;
+    border-radius: 6px;
+    box-shadow: 0 1px 4px rgba(0, 0, 0, 0.1);
 }
 .show-loading {
     text-align: center;

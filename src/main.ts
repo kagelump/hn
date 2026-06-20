@@ -395,6 +395,16 @@ function initHomePage(): void {
     }, true);
   });
 
+  PubSub.subscribe('show-home', () => {
+    showPage('page-home', 'Hacker News');
+    if (!data.cache().list) {
+      loading.show();
+    }
+    data.getArticles((items) => {
+      renderList(items as unknown as Array<Record<string, unknown>>);
+    }, false);
+  });
+
   PubSub.subscribe('reload-home', () => {
     data.getArticles((items) => {
       renderList(items as unknown as Array<Record<string, unknown>>);
@@ -462,7 +472,7 @@ function init(): void {
 
   // Load home page on start
   if (!window.location.hash || window.location.hash === '#/' || window.location.hash === '#') {
-    PubSub.publish('load-home');
+    PubSub.publish('show-home');
   }
 }
 

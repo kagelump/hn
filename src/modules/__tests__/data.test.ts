@@ -50,41 +50,6 @@ const sampleAskItem: FirebaseItem = {
   kids: [3001]
 };
 
-const sampleComment: FirebaseItem = {
-  id: 2001,
-  by: 'commenter',
-  text: 'Great article!',
-  time: Math.floor(Date.now() / 1000) - 1800, // 30 mins ago
-  type: 'comment',
-  parent: 1001,
-  kids: [2003]
-};
-
-const sampleNestedComment: FirebaseItem = {
-  id: 2003,
-  by: 'replier',
-  text: 'I agree!',
-  time: Math.floor(Date.now() / 1000) - 900, // 15 mins ago
-  type: 'comment',
-  parent: 2001
-};
-
-const deletedComment: FirebaseItem = {
-  id: 2002,
-  deleted: true,
-  time: Math.floor(Date.now() / 1000),
-  type: 'comment'
-};
-
-const deadComment: FirebaseItem = {
-  id: 2099,
-  by: 'spammer',
-  text: 'Buy stuff',
-  dead: true,
-  time: Math.floor(Date.now() / 1000),
-  type: 'comment'
-};
-
 describe('data module', () => {
   beforeEach(() => {
     mockFetch.mockReset();

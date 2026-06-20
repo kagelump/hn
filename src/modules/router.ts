@@ -40,7 +40,7 @@ export function showPage(pageClass: PageClass, title?: string): void {
 
 export function goHome(): void {
   showPage('page-home', 'Hacker News');
-  PubSub.publish('load-home');
+  PubSub.publish('show-home');
 }
 
 export function navigateTo(hash: string, state?: Record<string, unknown>): void {

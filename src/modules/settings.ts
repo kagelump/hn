@@ -5,6 +5,7 @@ import { PubSub } from '../utils/pubsub';
 import { store } from '../utils/storage';
 import { config } from '../config';
 import { escapeHtml } from '../utils/template';
+import { getBlockedUsers, unblockUser } from './moderation';
 
 const THEMES = ['default', 'dark'];
 const FONT_FAMILIES = [
@@ -107,6 +108,16 @@ export function renderSettingsPage(): void {
   const currentTextBrightness = store.get<number>('textBrightness') ?? 50;
   const isNative = Capacitor.isNativePlatform();
   const corsProxy = store.get<string>('corsProxy') || 'https://api.allorigins.win/raw?url=';
+  const blockedUsers = getBlockedUsers();
+
+  const blockedUsersHtml = blockedUsers.length
+    ? blockedUsers.map(u => `
+        <li class="setting-item-inline blocked-user-row" data-user="${escapeHtml(u)}">
+          <span>${escapeHtml(u)}</span>
+          <button type="button" class="unblock-btn">Unblock</button>
+        </li>
+      `).join('')
+    : '<li class="setting-item-inline blocked-user-empty"><span>No blocked users</span></li>';
 
   const fontFamilyHtml = FONT_FAMILIES.map(f => `
     <li class="setting-radio" data-font-family="${f.id}">
@@ -202,6 +213,12 @@ export function renderSettingsPage(): void {
         </div>
         ` : ''}
 
+        <div class="settings-section">
+          <h3 class="settings-section-title">Blocked Users</h3>
+          <ul class="settings-radio-list blocked-users-list">${blockedUsersHtml}</ul>
+          <p class="settings-hint">Tap any author's name in a story or comment to block them or report content.</p>
+        </div>
+
         <div class="settings-version">
           <p>Version ${config.v.app}-${config.v.js}-${config.v.css}</p>
 	          <p><a href="#/about">About HN Reader</a></p>
@@ -279,6 +296,18 @@ export function renderSettingsPage(): void {
   // Hide read comments
   const hideReadCheckbox = page.querySelector('#hide-read') as HTMLInputElement | null;
   hideReadCheckbox?.addEventListener('change', () => applyHideReadComments(hideReadCheckbox.checked));
+
+  // Unblock buttons
+  page.querySelectorAll('.unblock-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const row = btn.closest('.blocked-user-row') as HTMLElement | null;
+      const user = row?.dataset.user;
+      if (user) {
+        unblockUser(user);
+        renderSettingsPage();
+      }
+    });
+  });
 
   // CORS proxy
   if (!isNative) {

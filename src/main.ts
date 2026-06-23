@@ -17,6 +17,7 @@ import { initArticlePage } from './modules/article';
 import { initSettingsPage } from './modules/settings';
 import { initAboutPage } from './modules/about';
 import { initPerformancePage } from './modules/performance-page';
+import { getBlockedUsers } from './modules/moderation';
 import * as pullToRefresh from './modules/pullToRefresh';
 
 // Add HTML class to show app
@@ -355,7 +356,8 @@ function initHomePage(): void {
   let isLoadingMore = false;
 
   function renderList(items: Array<Record<string, unknown>>): void {
-    const html = items.map(item => {
+    const blocked = new Set(getBlockedUsers());
+    const html = items.filter(item => !blocked.has(String(item.user))).map(item => {
       if (item.domain && item.url) {
         item.self = false;
         item.urlTitle = (item.url as string).replace(/^https?:\/\//, '');
@@ -383,7 +385,9 @@ function initHomePage(): void {
       existingIds.add(li.getAttribute('data-id') || '');
     });
 
-    const newItems = items.filter(item => item.id && !existingIds.has(String(item.id)));
+    const blocked = new Set(getBlockedUsers());
+    const newItems = items.filter(item =>
+      item.id && !existingIds.has(String(item.id)) && !blocked.has(String(item.user)));
     const html = newItems.map(item => {
       if (item.domain && item.url) {
         item.self = false;

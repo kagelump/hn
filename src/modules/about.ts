@@ -27,6 +27,10 @@ function renderAboutPage(): void {
           <h3>Data Sources</h3>
           <p>Story data via the official <a href="https://github.com/HackerNews/API" target="_blank" rel="noopener noreferrer">Hacker News Firebase API</a>.</p>
           <p>Comment trees via the <a href="https://hn.algolia.com/api" target="_blank" rel="noopener noreferrer">HN Search API</a> by Algolia.</p>
+          <h3>Content &amp; Moderation</h3>
+          <p>HN Reader displays public, user-generated content from Hacker News, which is not created or moderated by this app. Tap any author's name on a story or comment to block that user or report objectionable content. We review reports and act within 24 hours.</p>
+          <p><a href="https://kagelump.github.io/hn/support/" target="_blank" rel="noopener noreferrer">Support &amp; Content Policy</a></p>
+          <p><a href="https://kagelump.github.io/hn/privacy/" target="_blank" rel="noopener noreferrer">Privacy Policy</a></p>
           <h3>Open Source Licenses</h3>
           <p>Reader mode powered by <a href="https://github.com/mozilla/readability" target="_blank" rel="noopener noreferrer">Mozilla's Readability</a> library, originally by Arc90 Inc, used under the <a href="https://www.apache.org/licenses/LICENSE-2.0" target="_blank" rel="noopener noreferrer">Apache License 2.0</a>.</p>
         </div>

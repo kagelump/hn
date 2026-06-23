@@ -867,6 +867,92 @@
     color: #e0e0e0;
 }
 
+/* Moderation: tappable author names + action sheet */
+.comment-user,
+.article-author {
+    cursor: pointer;
+}
+
+.moderation-sheet-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.5);
+    z-index: 1100;
+    display: flex;
+    align-items: flex-end;
+    justify-content: center;
+    padding-bottom: env(safe-area-inset-bottom);
+}
+
+.moderation-sheet {
+    background: var(--color-bg-card, #fff);
+    color: var(--color-text, #333);
+    width: 100%;
+    max-width: 480px;
+    border-radius: 14px 14px 0 0;
+    padding: 8px;
+    box-shadow: 0 -4px 24px rgba(0, 0, 0, 0.25);
+}
+
+.moderation-sheet-title {
+    text-align: center;
+    font-size: 13px;
+    font-weight: 600;
+    opacity: 0.6;
+    padding: 10px 0;
+}
+
+.moderation-sheet-btn {
+    display: block;
+    width: 100%;
+    padding: 14px;
+    margin: 4px 0;
+    border: none;
+    border-radius: 8px;
+    background: var(--page-bg, #f2f2f7);
+    color: var(--color-text, #333);
+    font-size: 16px;
+    cursor: pointer;
+}
+
+.moderation-sheet-btn:active {
+    opacity: 0.7;
+}
+
+.moderation-sheet-cancel {
+    font-weight: 600;
+    color: var(--theme-color);
+}
+
+.blocked-users-list .unblock-btn {
+    border: none;
+    background: none;
+    color: var(--theme-color);
+    font-size: 14px;
+    cursor: pointer;
+}
+
+.blocked-user-empty span {
+    opacity: 0.5;
+}
+
+.settings-hint {
+    font-size: 12px;
+    opacity: 0.6;
+    margin: 8px 0 0 0;
+    line-height: 1.4;
+}
+
+.theme-dark .moderation-sheet {
+    background: #1a1a2e;
+    color: #e0e0e0;
+}
+
+.theme-dark .moderation-sheet-btn {
+    background: #2a2a3e;
+    color: #e0e0e0;
+}
+
 /* Share button in article header — uses .icon-share from glyph.css */
 
 .pull-to-refresh {

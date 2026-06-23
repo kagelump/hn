@@ -3,6 +3,7 @@ import { data } from './data';
 import { showPage } from './router';
 import { PubSub } from '../utils/pubsub';
 import { escapeHtml } from '../utils/template';
+import { filterBlockedComments, showModerationSheet } from './moderation';
 import type { HNComment, HNItem } from '../types';
 
 export function shortenTimeAgo(timeAgo: string): string {
@@ -41,9 +42,9 @@ export function getCommentsHtml(comments: HNComment[], lastReadComment?: number)
       : '';
 
     return `
-      <li class="comment ${visitedClass}" data-id="${comment.id}">
+      <li class="comment ${visitedClass}" data-id="${comment.id}" data-user="${escapeHtml(comment.user)}">
         <div class="comment-meta">
-          <span class="comment-user">${escapeHtml(comment.user)}</span>
+          <span class="comment-user" role="button" tabindex="0">${escapeHtml(comment.user)}</span>
           <span class="comment-time">${shortenTimeAgo(comment.time_ago)}</span>
           ${collapseButton}
         </div>
@@ -93,7 +94,7 @@ function getArticleMetaHtml(article: HNItem): string {
       <h2>${escapeHtml(article.title)}</h2>
       <div class="article-meta">
         <span class="points">${article.points}</span>
-        <span class="author">${escapeHtml(article.user)}</span>
+        <span class="author article-author" role="button" tabindex="0" data-user="${escapeHtml(article.user)}">${escapeHtml(article.user)}</span>
         <span class="time-ago">${shortenTimeAgo(article.time_ago)}</span>
         <span class="comments-count">${article.comments_count} comments</span>
       </div>
@@ -108,7 +109,7 @@ function renderCommentsIntoPage(article: HNItem): void {
 
   page.dataset.articleId = String(article.id);
 
-  const allComments = article.comments || [];
+  const allComments = filterBlockedComments(article.comments || []);
   const commentsHtml = allComments.length
     ? `<ul class="comments-list">${getCommentsHtml(allComments, article.lastReadComment)}</ul>`
     : '<p class="no-comments">No comments yet.</p>';
@@ -164,6 +165,36 @@ export function initCommentsPage(): void {
   if (page) {
     page.addEventListener('click', (event: MouseEvent) => {
       const target = event.target as HTMLElement;
+
+      // Tap on the story author (OP) → moderation sheet for the story
+      if (target.closest('.article-author')) {
+        event.preventDefault();
+        const authorEl = target.closest('.article-author') as HTMLElement;
+        const user = authorEl.dataset.user || '';
+        const articleId = Number(page.dataset.articleId);
+        showModerationSheet({ kind: 'story', id: articleId, user });
+        return;
+      }
+
+      // Tap on author name → moderation sheet (block / report)
+      if (target.closest('.comment-user')) {
+        event.preventDefault();
+        const commentLi = target.closest('.comment') as HTMLElement | null;
+        if (commentLi) {
+          const user = commentLi.dataset.user || '';
+          const commentId = Number(commentLi.dataset.id);
+          showModerationSheet({
+            kind: 'comment',
+            id: commentId,
+            user,
+            onChange: () => {
+              page.querySelectorAll(`.comment[data-user="${CSS.escape(user)}"]`)
+                .forEach(el => el.remove());
+            }
+          });
+        }
+        return;
+      }
 
       // Handle tap on meta row to collapse (excluding the toggle button itself)
       const metaRow = target.closest('.comment-meta') as HTMLElement | null;

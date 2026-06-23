@@ -17,6 +17,7 @@ import { initArticlePage } from './modules/article';
 import { initSettingsPage } from './modules/settings';
 import { initAboutPage } from './modules/about';
 import { initPerformancePage } from './modules/performance-page';
+import * as pullToRefresh from './modules/pullToRefresh';
 
 // Add HTML class to show app
 document.querySelector('html')?.classList.add('show-app');
@@ -338,6 +339,16 @@ function initHomePage(): void {
     return;
   }
 
+  const scrollContainer = homePage?.querySelector('.pagebd-container') as HTMLElement | null;
+  if (scrollContainer) {
+    pullToRefresh.init({
+      container: scrollContainer,
+      onRefresh: () => {
+        PubSub.publish('reload-home');
+      }
+    });
+  }
+
   const listItemTemplate = document.querySelector('.template-list-item')?.innerHTML || '';
   const listItemRender = prerender(listItemTemplate);
 
@@ -359,6 +370,7 @@ function initHomePage(): void {
     loading.hide();
     homePageBody!.innerHTML = `<ul class="list">${html}</ul>`;
     homePage!.classList.add('show-page');
+    PubSub.publish('reload-home-complete');
   }
 
   function appendList(items: Array<Record<string, unknown>>): void {
@@ -408,7 +420,12 @@ function initHomePage(): void {
   PubSub.subscribe('reload-home', () => {
     data.getArticles((items) => {
       renderList(items as unknown as Array<Record<string, unknown>>);
-    }, true);
+    }, true).catch((error) => {
+      console.error('Failed to reload home:', error);
+      loading.setStatus('Could not refresh stories');
+      window.setTimeout(() => loading.clearStatus(), 3000);
+      PubSub.publish('reload-home-error');
+    });
   });
 
   PubSub.subscribe('filter-home', (type: unknown) => {
@@ -429,12 +446,11 @@ function initHomePage(): void {
   });
 
   // Infinite scroll: load more when near bottom
-  const scrollContainer = homePageBody;
   if (scrollContainer) {
     scrollContainer.addEventListener('scroll', () => {
       if (isLoadingMore) return;
       const { scrollTop, scrollHeight, clientHeight } = scrollContainer;
-      if (scrollHeight - scrollTop - clientHeight < 200) {
+      if (scrollHeight - scrollTop - clientHeight < 200 && data.hasMore()) {
         isLoadingMore = true;
         const list = homePageBody!.querySelector('.list');
         if (list) {
@@ -447,6 +463,13 @@ function initHomePage(): void {
           const indicator = homePageBody!.querySelector('.load-more-indicator');
           indicator?.remove();
           appendList(items as unknown as Array<Record<string, unknown>>);
+        }).catch((error) => {
+          const indicator = homePageBody!.querySelector('.load-more-indicator');
+          indicator?.remove();
+          isLoadingMore = false;
+          console.error('Failed to load more stories:', error);
+          loading.setStatus('Could not load more stories');
+          window.setTimeout(() => loading.clearStatus(), 3000);
         });
       }
     });

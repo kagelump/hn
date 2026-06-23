@@ -26,11 +26,13 @@ export default defineConfig({
         'src/main.ts',
         'src/styles/**',
         'src/modules/about.ts',
-        'src/modules/article.ts',
-        'src/modules/comments.ts',
-        'src/modules/settings.ts',
         'src/modules/performance-page.ts',
-        'src/modules/router.ts'
+        // Targeted unit tests exist for the exported helpers/share-text builders,
+        // but the bulk of these files is DOM-heavy page rendering that is not
+        // covered. Excluding them from coverage thresholds keeps the gate useful
+        // for the rest of the codebase.
+        'src/modules/article.ts',
+        'src/modules/comments.ts'
       ]
     }
   }

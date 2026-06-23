@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import { store } from '../storage';
 
 describe('store', () => {
@@ -41,6 +41,23 @@ describe('store', () => {
     it('handles null values gracefully', () => {
       store.set('nil', null);
       expect(localStorage.getItem('nil')).toBe('null');
+    });
+
+    it('logs an error when localStorage.setItem throws and does not crash', () => {
+      const error = new Error('quota exceeded');
+      const originalSetItem = localStorage.setItem;
+      localStorage.setItem = vi.fn(() => {
+        throw error;
+      });
+      const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+
+      try {
+        expect(() => store.set('key', 'value')).not.toThrow();
+        expect(consoleErrorSpy).toHaveBeenCalledWith('Storage error:', error);
+      } finally {
+        consoleErrorSpy.mockRestore();
+        localStorage.setItem = originalSetItem;
+      }
     });
   });
 

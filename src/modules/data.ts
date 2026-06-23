@@ -21,6 +21,10 @@ export function cancelPendingRequests(): void {
   }
 }
 
+export function hasMore(): boolean {
+  return pendingIds.length > 0;
+}
+
 const STORY_ENDPOINTS: Record<string, string> = {
   fp: '/topstories.json',
   'new': '/newstories.json',
@@ -273,7 +277,7 @@ function mergeVisitedState(items: HNItem[]): void {
   });
 }
 
-function readLocalData(): void {
+export function readLocalData(): void {
   const t0 = Date.now();
   const localVisitedData = store.get<VisitedData>('visited');
   const localStorageList = store.get<{ data: HNItem[]; timestamp: number }>('list');
@@ -573,6 +577,7 @@ export const data = {
   getArticles,
   getArticlesByType,
   loadMore,
+  hasMore,
   getArticleMeta,
   getArticleComments,
   loadMoreComments,

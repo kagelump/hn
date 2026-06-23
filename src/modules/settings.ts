@@ -37,7 +37,7 @@ const THEME_COLORS = [
   '#ff1744', '#ef5350', '#c62828', '#b71c1c'
 ];
 
-function applyTheme(theme: string): void {
+export function applyTheme(theme: string): void {
   const html = document.querySelector('html');
   if (!html) return;
   THEMES.forEach(t => html.classList.remove(`theme-${t}`));
@@ -46,7 +46,7 @@ function applyTheme(theme: string): void {
   store.set('theme', theme);
 }
 
-function applyFontFamily(fontId: string): void {
+export function applyFontFamily(fontId: string): void {
   const html = document.querySelector('html');
   if (!html) return;
   const font = FONT_FAMILIES.find(f => f.id === fontId);
@@ -57,7 +57,7 @@ function applyFontFamily(fontId: string): void {
   }
 }
 
-function applyTextSize(size: number): void {
+export function applyTextSize(size: number): void {
   const html = document.querySelector('html');
   if (!html) return;
   html.style.fontSize = `${size}px`;
@@ -65,7 +65,7 @@ function applyTextSize(size: number): void {
   store.set('textSize', size);
 }
 
-function applyThemeColor(color: string): void {
+export function applyThemeColor(color: string): void {
   const html = document.querySelector('html');
   if (!html) return;
   html.style.setProperty('--theme-color', color);
@@ -73,28 +73,28 @@ function applyThemeColor(color: string): void {
   store.set('themeColor', color);
 }
 
-function applyAnimation(enabled: boolean): void {
+export function applyAnimation(enabled: boolean): void {
   const html = document.querySelector('html');
   if (!html) return;
   html.classList.toggle('no-animation', !enabled);
   store.set('animation', enabled ? 'yes' : 'no');
 }
 
-function applyHideReadComments(hide: boolean): void {
+export function applyHideReadComments(hide: boolean): void {
   const html = document.querySelector('html');
   if (!html) return;
   html.classList.toggle('hide-comment-visited', hide);
   store.set('hideReadComment', hide ? 'yes' : 'no');
 }
 
-function applyTextBrightness(brightness: number): void {
+export function applyTextBrightness(brightness: number): void {
   const html = document.querySelector('html');
   if (!html) return;
   html.style.setProperty('--text-brightness', `${brightness}`);
   store.set('textBrightness', brightness);
 }
 
-function renderSettingsPage(): void {
+export function renderSettingsPage(): void {
   const page = document.querySelector('.page-settings') as HTMLElement | null;
   if (!page) return;
 

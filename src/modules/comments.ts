@@ -5,14 +5,14 @@ import { PubSub } from '../utils/pubsub';
 import { escapeHtml } from '../utils/template';
 import type { HNComment, HNItem } from '../types';
 
-function shortenTimeAgo(timeAgo: string): string {
+export function shortenTimeAgo(timeAgo: string): string {
   const match = timeAgo.match(/(\d+)\s+(second|minute|hour|day|month|year)s?\s+ago/);
   if (!match) return timeAgo;
   const unit = match[2][0]; // s, m, h, d, m, y
   return `${match[1]}${unit}`;
 }
 
-function countChildren(comments: HNComment[]): number {
+export function countChildren(comments: HNComment[]): number {
   let count = comments.length;
   for (const comment of comments) {
     if (comment.comments) count += countChildren(comment.comments);
@@ -20,7 +20,7 @@ function countChildren(comments: HNComment[]): number {
   return count;
 }
 
-function getCommentsHtml(comments: HNComment[], lastReadComment?: number): string {
+export function getCommentsHtml(comments: HNComment[], lastReadComment?: number): string {
   return comments.map(comment => {
     const visitedClass = lastReadComment && comment.id < lastReadComment ? 'comment-visited' : '';
     const hasChildren = comment.comments && comment.comments.length > 0;
@@ -54,6 +54,12 @@ function getCommentsHtml(comments: HNComment[], lastReadComment?: number): strin
       </li>
     `;
   }).join('');
+}
+
+export function buildCommentsShareText(title: string, comments: string[], articleId: string | undefined): string {
+  const body = comments.join('\n\n');
+  const hnLink = articleId ? `https://news.ycombinator.com/item?id=${articleId}` : '';
+  return `Summarize the following discussion:\n\n${title}\n${hnLink}\n\n${body}`;
 }
 
 function getHeaderHtml(sortWarning?: string): string {
@@ -174,10 +180,8 @@ export function initCommentsPage(): void {
         const title = titleEl?.textContent?.trim() || '';
         const commentEls = page.querySelectorAll('.comments-list .comment-content');
         const comments = Array.from(commentEls).map(el => (el.textContent || '').trim()).filter(Boolean);
-        const body = comments.join('\n\n');
         const articleId = page.dataset.articleId;
-        const hnLink = articleId ? `https://news.ycombinator.com/item?id=${articleId}` : '';
-        const text = `Summarize the following discussion:\n\n${title}\n${hnLink}\n\n${body}`;
+        const text = buildCommentsShareText(title, comments, articleId);
         if (navigator.share) {
           navigator.share({ title, text }).catch(() => {});
         } else {

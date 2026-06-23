@@ -88,8 +88,8 @@ test.describe('HN Reader', () => {
     await expect(page.locator('.page-settings h1')).toHaveText('Settings');
 
     // Should have theme selector
-    await expect(page.locator('#theme-select')).toBeVisible();
-    await expect(page.locator('#font-select')).toBeVisible();
+    await expect(page.locator('.page-settings [data-theme]')).toHaveCount(2);
+    await expect(page.locator('.page-settings [data-font-family]')).toHaveCount(4);
     await expect(page.locator('#hide-read')).toBeVisible();
   });
 
@@ -136,6 +136,36 @@ test.describe('HN Reader', () => {
     await page.locator('.reload').click();
 
     // Stories should still be visible after reload
+    await expect(page.locator('.page-home .list li')).toHaveCount(30, { timeout: 15000 });
+  });
+
+  test('infinite scroll loads more stories', async ({ page }) => {
+    await page.goto('/');
+    await expect(page.locator('.page-home .list li')).toHaveCount(30, { timeout: 15000 });
+
+    // Scroll the actual scroll container to the bottom
+    await page.locator('.pagebd-container').evaluate(el => el.scrollTop = el.scrollHeight);
+
+    // Wait for more items to load
+    await expect(page.locator('.page-home .list li')).toHaveCount(60, { timeout: 15000 });
+  });
+
+  test('pull to refresh reloads stories', async ({ page }) => {
+    await page.goto('/');
+    await expect(page.locator('.page-home .list li')).toHaveCount(30, { timeout: 15000 });
+
+    // Simulate pull-to-refresh via touch
+    const container = page.locator('.pagebd-container');
+    const box = await container.boundingBox();
+    if (!box) throw new Error('Container not found');
+
+    const touchStart = { identifier: 0, clientX: box.x + box.width / 2, clientY: box.y + 100 };
+    const touchEnd = { identifier: 0, clientX: box.x + box.width / 2, clientY: box.y + 300 };
+    await container.dispatchEvent('touchstart', { touches: [touchStart] });
+    await container.dispatchEvent('touchmove', { touches: [touchEnd] });
+    await container.dispatchEvent('touchend', { changedTouches: [touchEnd] });
+
+    await expect(page.locator('.pull-to-refresh-loading')).toBeVisible({ timeout: 5000 });
     await expect(page.locator('.page-home .list li')).toHaveCount(30, { timeout: 15000 });
   });
 });

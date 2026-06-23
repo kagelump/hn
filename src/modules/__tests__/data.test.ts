@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, type Mock } from 'vitest';
-import type { FirebaseItem } from '../../types';
+import type { FirebaseItem, HNComment, VisitedData } from '../../types';
 
 // Mock fetch globally
 const mockFetch = vi.fn() as Mock;
@@ -13,9 +13,16 @@ vi.mock('../performance', () => ({
   }
 }));
 
+// Mock Capacitor native bridge
+vi.mock('@capacitor/core', () => ({
+  Capacitor: { isNativePlatform: vi.fn(() => false) },
+  CapacitorHttp: { get: vi.fn() }
+}));
+
 // Import after mocks are set up
-import { data, extractHnPageData, sortCommentsByPageOrder, applyColorClasses } from '../data';
-import type { HNComment } from '../../types';
+import { data, extractHnPageData, sortCommentsByPageOrder, applyColorClasses, readLocalData } from '../data';
+import { Capacitor, CapacitorHttp } from '@capacitor/core';
+import { store } from '../../utils/storage';
 
 function mockFetchResponse(body: unknown, ok = true) {
   return Promise.resolve({
@@ -53,6 +60,8 @@ const sampleAskItem: FirebaseItem = {
 describe('data module', () => {
   beforeEach(() => {
     mockFetch.mockReset();
+    vi.mocked(Capacitor.isNativePlatform).mockReset().mockReturnValue(false);
+    vi.mocked(CapacitorHttp.get).mockReset();
     // Clear the module's internal cache by re-importing would be complex,
     // so we test the observable behavior
   });
@@ -1159,6 +1168,442 @@ describe('data module', () => {
       expect(replies).toHaveLength(2);
       expect(replies[0].id).toBe(7002);
       expect(replies[1].id).toBe(7003);
+    });
+  });
+
+  describe('hasMore', () => {
+    it('returns true when pending IDs remain after getArticles', async () => {
+      const ids = Array.from({ length: 35 }, (_, i) => 8000 + i);
+      const items = ids.map(id => ({
+        id,
+        by: 'user',
+        title: `Item ${id}`,
+        score: 1,
+        time: Math.floor(Date.now() / 1000),
+        type: 'story'
+      }));
+
+      mockFetch.mockImplementation((url: string) => {
+        if (url.includes('topstories')) return mockFetchResponse(ids);
+        const id = parseInt(url.match(/item\/(\d+)/)?.[1] || '0');
+        return mockFetchResponse(items.find(i => i.id === id) || null);
+      });
+
+      await new Promise<void>((resolve) => {
+        data.getArticles(() => resolve(), true);
+      });
+
+      expect(data.hasMore()).toBe(true);
+    });
+
+    it('returns false when no pending IDs remain', async () => {
+      const ids = Array.from({ length: 30 }, (_, i) => 8100 + i);
+      const items = ids.map(id => ({
+        id,
+        by: 'user',
+        title: `Item ${id}`,
+        score: 1,
+        time: Math.floor(Date.now() / 1000),
+        type: 'story'
+      }));
+
+      mockFetch.mockImplementation((url: string) => {
+        if (url.includes('topstories')) return mockFetchResponse(ids);
+        const id = parseInt(url.match(/item\/(\d+)/)?.[1] || '0');
+        return mockFetchResponse(items.find(i => i.id === id) || null);
+      });
+
+      await new Promise<void>((resolve) => {
+        data.getArticles(() => resolve(), true);
+      });
+
+      expect(data.hasMore()).toBe(false);
+    });
+  });
+
+  describe('loadMoreComments', () => {
+    it('resolves without doing anything', async () => {
+      await expect(data.loadMoreComments(123)).resolves.toBeUndefined();
+    });
+  });
+
+  describe('readLocalData', () => {
+    it('prunes visited entries older than 7 days and removes entries with no remaining a/c', () => {
+      vi.useFakeTimers();
+      const now = Date.now();
+      const old = now - 1000 * 60 * 60 * 24 * 8;
+
+      store.set('visited', {
+        version: 2,
+        oldArticle: { a: old },
+        oldBoth: { a: old, c: old },
+        fresh: { a: now - 1000, c: old }
+      });
+
+      readLocalData();
+      vi.runAllTimers();
+
+      const saved = store.get<VisitedData>('visited');
+      expect(saved).toBeDefined();
+      expect(saved!.oldArticle).toBeUndefined();
+      expect(saved!.oldBoth).toBeUndefined();
+      expect(saved!.fresh).toEqual({ a: expect.any(Number) });
+
+      vi.useRealTimers();
+    });
+
+    it('loads a cached list when it is less than 5 minutes old', () => {
+      const cachedList: HNItem[] = [
+        {
+          id: 7777,
+          title: 'Cached',
+          points: 5,
+          user: 'u',
+          time_ago: '1h',
+          comments_count: 0,
+          self: false
+        }
+      ];
+
+      store.set('list', { data: cachedList, timestamp: Date.now() - 1000 * 60 });
+      readLocalData();
+
+      expect(data.cache().list).toEqual([
+        { ...cachedList[0], visitedArticle: '', visitedComments: '' }
+      ]);
+    });
+  });
+
+  describe('fetchHnPageHtml platform paths', () => {
+    it('uses CapacitorHttp.get on native platforms', async () => {
+      vi.mocked(Capacitor.isNativePlatform).mockReturnValue(true);
+      const hnHtml = `<table>
+        <tr class="athing" id="3001"></tr>
+        <tr class="athing comtr" id="8001"><td><div class="commtext c00">native</div></td></tr>
+      </table>`;
+      vi.mocked(CapacitorHttp.get).mockResolvedValue({ data: hnHtml });
+
+      const algoliaResponse = {
+        id: 3001,
+        type: 'story',
+        author: 'author',
+        title: 'Native',
+        points: 1,
+        created_at_i: Math.floor(Date.now() / 1000),
+        children: [
+          {
+            id: 8001,
+            type: 'comment',
+            author: 'c',
+            text: 'native comment',
+            created_at_i: Math.floor(Date.now() / 1000),
+            children: []
+          }
+        ]
+      };
+
+      mockFetch.mockReset();
+      mockFetch.mockImplementationOnce(() => mockFetchResponse(algoliaResponse));
+
+      const result = await new Promise<Record<string, unknown>>((resolve) => {
+        data.getArticleComments(3001, (item) => resolve(item as unknown as Record<string, unknown>), true);
+      });
+
+      expect(CapacitorHttp.get).toHaveBeenCalledWith({
+        url: 'https://news.ycombinator.com/item?id=3001',
+        responseType: 'text'
+      });
+      expect(mockFetch).toHaveBeenCalledTimes(1);
+
+      const comments = result.comments as Record<string, unknown>[];
+      expect(comments).toHaveLength(1);
+      expect(comments[0].id).toBe(8001);
+    });
+
+    it('falls back to the CORS proxy when native CapacitorHttp.get fails', async () => {
+      vi.mocked(Capacitor.isNativePlatform).mockReturnValue(true);
+      vi.mocked(CapacitorHttp.get).mockRejectedValue(new Error('native failed'));
+
+      const hnHtml = `<table>
+        <tr class="athing" id="3002"></tr>
+        <tr class="athing comtr" id="8002"><td><div class="commtext c00">fallback</div></td></tr>
+      </table>`;
+
+      const algoliaResponse = {
+        id: 3002,
+        type: 'story',
+        author: 'author',
+        title: 'Fallback',
+        points: 1,
+        created_at_i: Math.floor(Date.now() / 1000),
+        children: [
+          {
+            id: 8002,
+            type: 'comment',
+            author: 'c',
+            text: 'fallback comment',
+            created_at_i: Math.floor(Date.now() / 1000),
+            children: []
+          }
+        ]
+      };
+
+      mockFetch.mockReset();
+      mockFetch
+        .mockImplementationOnce(() => mockFetchResponse(algoliaResponse))
+        .mockImplementationOnce(() => mockFetchResponse(hnHtml));
+
+      const result = await new Promise<Record<string, unknown>>((resolve) => {
+        data.getArticleComments(3002, (item) => resolve(item as unknown as Record<string, unknown>), true);
+      });
+
+      expect(mockFetch).toHaveBeenCalledTimes(2);
+      const comments = result.comments as Record<string, unknown>[];
+      expect(comments[0].id).toBe(8002);
+    });
+
+    it('uses the configured CORS proxy URL on web', async () => {
+      const customProxy = 'https://my.proxy/?url=';
+      store.set('corsProxy', customProxy);
+
+      const algoliaResponse = {
+        id: 4001,
+        type: 'story',
+        author: 'author',
+        title: 'Proxy',
+        points: 1,
+        created_at_i: Math.floor(Date.now() / 1000),
+        children: [
+          {
+            id: 9001,
+            type: 'comment',
+            author: 'c',
+            text: 'proxy comment',
+            created_at_i: Math.floor(Date.now() / 1000),
+            children: []
+          }
+        ]
+      };
+
+      const hnHtml = `<table>
+        <tr class="athing" id="4001"></tr>
+        <tr class="athing comtr" id="9001"><td><div class="commtext c00">proxy</div></td></tr>
+      </table>`;
+
+      mockFetch.mockReset();
+      mockFetch
+        .mockImplementationOnce(() => mockFetchResponse(algoliaResponse))
+        .mockImplementationOnce((url: string) => {
+          expect(url).toContain(customProxy);
+          return mockFetchResponse(hnHtml);
+        });
+
+      await new Promise<void>((resolve) => {
+        data.getArticleComments(4001, () => resolve(), true);
+      });
+    });
+
+    it('logs a warning and continues without HN page ordering when proxy returns non-ok', async () => {
+      const consoleWarnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+
+      const algoliaResponse = {
+        id: 5006,
+        type: 'story',
+        author: 'author',
+        title: 'Non-ok',
+        points: 1,
+        created_at_i: Math.floor(Date.now() / 1000),
+        children: [
+          {
+            id: 9002,
+            type: 'comment',
+            author: 'c',
+            text: 'comment',
+            created_at_i: Math.floor(Date.now() / 1000),
+            children: []
+          }
+        ]
+      };
+
+      mockFetch.mockReset();
+      mockFetch
+        .mockImplementationOnce(() => mockFetchResponse(algoliaResponse))
+        .mockImplementationOnce(() => mockFetchResponse(null, false));
+
+      const result = await new Promise<Record<string, unknown>>((resolve) => {
+        data.getArticleComments(5006, (item) => resolve(item as unknown as Record<string, unknown>), true);
+      });
+
+      expect(result.sortWarning).toContain('Could not fetch the HN page');
+      consoleWarnSpy.mockRestore();
+    });
+  });
+
+  describe('getArticlesByType abort handling', () => {
+    it('returns early on AbortError without throwing', async () => {
+      mockFetch.mockImplementationOnce(() =>
+        Promise.reject(Object.assign(new Error('aborted'), { name: 'AbortError' }))
+      );
+
+      await expect(data.getArticlesByType('new')).resolves.toBeUndefined();
+    });
+
+    it('throws on non-abort errors', async () => {
+      mockFetch.mockImplementationOnce(() => Promise.reject(new Error('network down')));
+
+      await expect(
+        new Promise<void>((_resolve, reject) => {
+          data.getArticlesByType('new').catch(reject);
+        })
+      ).rejects.toThrow('network down');
+    });
+  });
+
+  describe('getArticleComments visited restoration', () => {
+    it('restores lastReadComment from visited data', async () => {
+      const id = 5005;
+      const now = Date.now();
+      store.set('visited', {
+        version: 2,
+        [String(id)]: { a: now, lastReadComment: 12345 }
+      });
+      readLocalData();
+
+      const algoliaResponse = {
+        id,
+        type: 'story',
+        author: 'author',
+        title: 'LR',
+        points: 1,
+        created_at_i: Math.floor(now / 1000),
+        children: [
+          {
+            id: 6001,
+            type: 'comment',
+            author: 'c',
+            text: 'comment',
+            created_at_i: Math.floor(now / 1000),
+            children: []
+          }
+        ]
+      };
+
+      mockFetch.mockReset();
+      mockFetch
+        .mockImplementationOnce(() => mockFetchResponse(algoliaResponse))
+        .mockImplementationOnce(() => mockFetchResponse(''));
+
+      const result = await new Promise<Record<string, unknown>>((resolve) => {
+        data.getArticleComments(id, (item) => resolve(item as unknown as Record<string, unknown>), true);
+      });
+
+      expect(result.lastReadComment).toBe(12345);
+    });
+  });
+
+  describe('additional transform coverage', () => {
+    it('formats time_ago for timestamps years in the past', async () => {
+      const yearsAgo = Math.floor(Date.now() / 1000) - 60 * 60 * 24 * 365 * 3;
+      const item: FirebaseItem = {
+        id: 5007,
+        by: 'user',
+        title: 'Old',
+        score: 1,
+        time: yearsAgo,
+        type: 'story'
+      };
+      mockFetch
+        .mockImplementationOnce(() => mockFetchResponse([5007]))
+        .mockImplementationOnce(() => mockFetchResponse(item));
+
+      const items = await new Promise<Record<string, unknown>[]>((resolve) => {
+        data.getArticles((list) => resolve(list as unknown as Record<string, unknown>[]), true);
+      });
+
+      expect(items[0].time_ago).toContain('year');
+    });
+
+    it('handles invalid URLs when extracting domain', async () => {
+      const item: FirebaseItem = {
+        id: 5008,
+        by: 'user',
+        title: 'Bad URL',
+        url: 'not a valid url',
+        score: 1,
+        time: Math.floor(Date.now() / 1000),
+        type: 'story'
+      };
+      mockFetch
+        .mockImplementationOnce(() => mockFetchResponse([5008]))
+        .mockImplementationOnce(() => mockFetchResponse(item));
+
+      const items = await new Promise<Record<string, unknown>[]>((resolve) => {
+        data.getArticles((list) => resolve(list as unknown as Record<string, unknown>[]), true);
+      });
+
+      expect(items[0].domain).toBe('');
+    });
+
+    it('applies visited state to items from visited data', async () => {
+      const id = 5009;
+      const now = Date.now();
+      store.set('visited', {
+        version: 2,
+        [String(id)]: { a: now, c: now }
+      });
+      readLocalData();
+
+      const item: FirebaseItem = {
+        id,
+        by: 'user',
+        title: 'Visited',
+        score: 1,
+        time: Math.floor(now / 1000),
+        type: 'story'
+      };
+      mockFetch
+        .mockImplementationOnce(() => mockFetchResponse([id]))
+        .mockImplementationOnce(() => mockFetchResponse(item));
+
+      const items = await new Promise<Record<string, unknown>[]>((resolve) => {
+        data.getArticles((list) => resolve(list as unknown as Record<string, unknown>[]), true);
+      });
+
+      expect(items[0].visitedArticle).toBe('visited');
+      expect(items[0].visitedComments).toBe('visited');
+    });
+  });
+
+  describe('loadMore error handling', () => {
+    it('throws on fetch failure', async () => {
+      const ids = Array.from({ length: 35 }, (_, i) => 8200 + i);
+      const items = ids.map(id => ({
+        id,
+        by: 'user',
+        title: `Item ${id}`,
+        score: 1,
+        time: Math.floor(Date.now() / 1000),
+        type: 'story'
+      }));
+
+      mockFetch.mockImplementation((url: string) => {
+        if (url.includes('topstories')) return mockFetchResponse(ids);
+        const id = parseInt(url.match(/item\/(\d+)/)?.[1] || '0');
+        return mockFetchResponse(items.find(i => i.id === id) || null);
+      });
+
+      await new Promise<void>((resolve) => {
+        data.getArticles(() => resolve(), true);
+      });
+
+      mockFetch.mockReset();
+      mockFetch.mockImplementation(() => Promise.reject(new Error('loadMore failed')));
+
+      await expect(
+        new Promise<void>((_resolve, reject) => {
+          data.loadMore().catch(reject);
+        })
+      ).rejects.toThrow('loadMore failed');
     });
   });
 });

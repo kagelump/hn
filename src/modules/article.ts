@@ -10,8 +10,14 @@ import type { HNItem } from '../types';
 
 const DEFAULT_CORS_PROXY = 'https://api.allorigins.win/raw?url=';
 
-function getCorsProxyUrl(): string {
+export function getCorsProxyUrl(): string {
   return store.get<string>('corsProxy') || DEFAULT_CORS_PROXY;
+}
+
+export function buildArticleShareText(title: string, url: string, hnLink: string, bodyText: string): string {
+  return url
+    ? `Summarize the following article:\n\n${title}\n${url}\n${hnLink}\n\n${bodyText}`
+    : `Summarize the following article:\n\n${title}\n${hnLink}\n\n${bodyText}`;
 }
 
 async function fetchArticleHtml(url: string): Promise<string> {
@@ -38,7 +44,7 @@ async function fetchArticleHtml(url: string): Promise<string> {
   return response.text();
 }
 
-function parseWithReadability(html: string, url: string): { title: string; byline: string; content: string } | null {
+export function parseWithReadability(html: string, url: string): { title: string; byline: string; content: string } | null {
   const doc = new DOMParser().parseFromString(html, 'text/html');
   // Rewrite relative URLs to absolute
   const base = doc.createElement('base');
@@ -107,9 +113,7 @@ async function shareArticle(): Promise<void> {
   const articleId = page.dataset.articleId;
   const hnLink = articleId ? `https://news.ycombinator.com/item?id=${articleId}` : '';
 
-  const shareText = url
-    ? `Summarize the following article:\n\n${title}\n${url}\n${hnLink}\n\n${bodyText}`
-    : `Summarize the following article:\n\n${title}\n${hnLink}\n\n${bodyText}`;
+  const shareText = buildArticleShareText(title, url, hnLink, bodyText);
 
   if (navigator.share) {
     try {

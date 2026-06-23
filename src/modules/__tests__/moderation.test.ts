@@ -6,7 +6,8 @@ import {
   unblockUser,
   filterBlockedComments,
   filterBlockedStories,
-  showModerationSheet
+  showModerationSheet,
+  BLOCKED_PLACEHOLDER
 } from '../moderation';
 import type { HNComment, HNItem } from '../../types';
 
@@ -61,17 +62,27 @@ describe('moderation: filtering', () => {
     expect(filterBlockedComments(comments)).toBe(comments);
   });
 
-  it('removes a blocked author and their replies', () => {
+  it('rewrites a blocked author as a placeholder but keeps their replies', () => {
     blockUser('troll');
     const comments = [
       comment(1, 'alice', [comment(2, 'troll'), comment(3, 'bob')]),
       comment(4, 'troll', [comment(5, 'alice')])
     ];
     const filtered = filterBlockedComments(comments);
-    expect(filtered).toHaveLength(1);
-    expect(filtered[0].id).toBe(1);
-    expect(filtered[0].comments).toHaveLength(1);
-    expect(filtered[0].comments![0].id).toBe(3);
+
+    // Nothing is removed — structure is preserved
+    expect(filtered).toHaveLength(2);
+    expect(filtered.map(c => c.id)).toEqual([1, 4]);
+
+    // The troll's content is replaced; non-blocked content is untouched
+    expect(filtered[0].comments![0].id).toBe(2);
+    expect(filtered[0].comments![0].content).toBe(BLOCKED_PLACEHOLDER);
+    expect(filtered[0].comments![1].content).toBe('hi');
+
+    // A blocked top-level comment keeps its (non-blocked) replies visible
+    expect(filtered[1].content).toBe(BLOCKED_PLACEHOLDER);
+    expect(filtered[1].comments![0].id).toBe(5);
+    expect(filtered[1].comments![0].content).toBe('hi');
   });
 
   it('filters blocked authors from story lists', () => {
@@ -88,17 +99,16 @@ describe('moderation: action sheet', () => {
     document.body.innerHTML = '';
   });
 
-  it('renders block and report actions', () => {
-    showModerationSheet({ kind: 'comment', id: 42, user: 'alice' });
-    const sheet = document.querySelector('.moderation-sheet-overlay');
-    expect(sheet).not.toBeNull();
+  it('renders a block action and no report action', () => {
+    showModerationSheet({ user: 'alice' });
+    expect(document.querySelector('.moderation-sheet-overlay')).not.toBeNull();
     expect(document.querySelector('[data-action="block"]')).not.toBeNull();
-    expect(document.querySelector('[data-action="report"]')).not.toBeNull();
+    expect(document.querySelector('[data-action="report"]')).toBeNull();
   });
 
   it('blocks the user and fires onChange when block is tapped', () => {
     let changed = false;
-    showModerationSheet({ kind: 'comment', id: 42, user: 'alice', onChange: () => { changed = true; } });
+    showModerationSheet({ user: 'alice', onChange: () => { changed = true; } });
     (document.querySelector('[data-action="block"]') as HTMLElement).click();
     expect(isBlocked('alice')).toBe(true);
     expect(changed).toBe(true);
@@ -106,14 +116,14 @@ describe('moderation: action sheet', () => {
   });
 
   it('closes without blocking on cancel', () => {
-    showModerationSheet({ kind: 'story', id: 7, user: 'bob' });
+    showModerationSheet({ user: 'bob' });
     (document.querySelector('[data-action="cancel"]') as HTMLElement).click();
     expect(isBlocked('bob')).toBe(false);
     expect(document.querySelector('.moderation-sheet-overlay')).toBeNull();
   });
 
   it('does nothing for an empty user', () => {
-    showModerationSheet({ kind: 'comment', id: 1, user: '' });
+    showModerationSheet({ user: '' });
     expect(document.querySelector('.moderation-sheet-overlay')).toBeNull();
   });
 });

@@ -873,6 +873,11 @@
     cursor: pointer;
 }
 
+.comment-blocked {
+    font-style: italic;
+    opacity: 0.5;
+}
+
 .moderation-sheet-overlay {
     position: fixed;
     inset: 0;

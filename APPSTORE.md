@@ -42,7 +42,7 @@ FEATURES
 • Front page, plus Ask HN, Show HN, New, and Jobs
 • Reader mode that extracts the article text for distraction-free reading
 • Comment threads shown in the correct Hacker News order, with collapsible replies
-• Block any author and report objectionable content with a tap
+• Block any author with a tap — their stories are hidden and comments read “[blocked]”
 • Light and dark themes, custom fonts, adjustable text size, and a pickable accent color
 • Offline caching of recently loaded stories
 • No account, no analytics, no tracking — your settings stay on your device
@@ -60,40 +60,39 @@ Hacker News APIs.
 
 ## Age rating
 
-Hacker News is unfiltered user-generated content. Answer the questionnaire
-honestly — expect a **17+** rating (set "Unrestricted Web Access" and
-"Infrequent/Mild" for user-generated content categories as appropriate). Do not
-claim the content is moderated by us; it is not.
+Hacker News is user-generated content on a moderated platform. Answer the
+questionnaire honestly — expect a **17+** rating (set "Unrestricted Web Access"
+and "Infrequent/Mild" for user-generated content categories as appropriate).
 
 ---
 
 ## App Review Notes (paste into the "Notes" field) — IMPORTANT for Guideline 1.2
 
 ```
-HN Reader is a read-only client for Hacker News (news.ycombinator.com), a public
+HN Reader is a strictly read-only client for Hacker News
+(news.ycombinator.com), a well-established and actively moderated public
 tech-news discussion site. The app displays content via the official public
-Hacker News APIs. Users cannot post, comment, vote, or sign in — the app is
-strictly read-only.
+Hacker News APIs. Users cannot post, comment, vote, or sign in from the app —
+there is no mechanism to create user-generated content within HN Reader.
 
-Although the app does not host or generate user content, we have implemented the
-full set of UGC safeguards from Guideline 1.2:
+Moderation of the content itself is handled upstream by Hacker News, which has
+human moderators and published community guidelines
+(https://news.ycombinator.com/newsguidelines.html). Because the app is read-only
+and the source platform is moderated, there is no user-generated content
+originating in the app to moderate.
 
-1. FILTER/BLOCK abusive users: Tap any author's name on a story or comment and
-   choose "Block this user." That author's stories and comments — and all replies
-   beneath them — are hidden immediately and persistently. Blocks are managed and
-   removable under Settings > Blocked Users.
+In addition, HN Reader gives each user a personal blocking control:
 
-2. REPORT objectionable content: Tap any author's name and choose "Report." This
-   composes an email to the maintainer with a direct link to the reported content.
+- BLOCK an author: Tap any author's name on a story or comment and choose
+  "Block this user." That author's stories are hidden from the list and their
+  comments are replaced with a "[blocked]" placeholder. Blocks persist and are
+  managed/removable under Settings > Blocked Users.
 
-3. ACTING ON REPORTS: Reports go to raycatdev@hinoka.org. We review them and act
-   within 24 hours (e.g. filtering an author from the app's default experience).
-   Our content policy is published at https://kagelump.github.io/hn/support/.
-
-4. CONTACT INFO is published in-app (Settings > About) and on the support site.
+Contact info and content policy are published in-app (Settings > About) and at
+https://kagelump.github.io/hn/support/.
 
 To test blocking: open any comment thread, tap a commenter's name, choose
-"Block this user," and observe the comment and its replies disappear.
+"Block this user," and observe that comment change to "[blocked]".
 
 No account or demo credentials are required.
 ```

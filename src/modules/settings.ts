@@ -216,7 +216,7 @@ export function renderSettingsPage(): void {
         <div class="settings-section">
           <h3 class="settings-section-title">Blocked Users</h3>
           <ul class="settings-radio-list blocked-users-list">${blockedUsersHtml}</ul>
-          <p class="settings-hint">Tap any author's name in a story or comment to block them or report content.</p>
+          <p class="settings-hint">Tap any author's name in a story or comment to block them. Blocked authors' stories are hidden and their comments are replaced with “[blocked]”.</p>
         </div>
 
         <div class="settings-version">

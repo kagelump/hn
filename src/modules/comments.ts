@@ -3,8 +3,21 @@ import { data } from './data';
 import { showPage } from './router';
 import { PubSub } from '../utils/pubsub';
 import { escapeHtml } from '../utils/template';
-import { filterBlockedComments, showModerationSheet } from './moderation';
+import { filterBlockedComments, showModerationSheet, BLOCKED_PLACEHOLDER } from './moderation';
 import type { HNComment, HNItem } from '../types';
+
+// Instant feedback after blocking: rewrite the blocked author's visible comments
+// as the "[blocked]" placeholder, keeping their replies in place.
+function blockUserInPage(page: HTMLElement, user: string): void {
+  if (!user) return;
+  page.querySelectorAll(`.comment[data-user="${CSS.escape(user)}"]`).forEach(li => {
+    const content = li.querySelector(':scope > .comment-body > .comment-content') as HTMLElement | null;
+    if (content) {
+      content.innerHTML = BLOCKED_PLACEHOLDER;
+      content.removeAttribute('style');
+    }
+  });
+}
 
 export function shortenTimeAgo(timeAgo: string): string {
   const match = timeAgo.match(/(\d+)\s+(second|minute|hour|day|month|year)s?\s+ago/);
@@ -166,32 +179,22 @@ export function initCommentsPage(): void {
     page.addEventListener('click', (event: MouseEvent) => {
       const target = event.target as HTMLElement;
 
-      // Tap on the story author (OP) → moderation sheet for the story
+      // Tap on the story author (OP) → moderation sheet
       if (target.closest('.article-author')) {
         event.preventDefault();
         const authorEl = target.closest('.article-author') as HTMLElement;
         const user = authorEl.dataset.user || '';
-        const articleId = Number(page.dataset.articleId);
-        showModerationSheet({ kind: 'story', id: articleId, user });
+        showModerationSheet({ user, onChange: () => blockUserInPage(page, user) });
         return;
       }
 
-      // Tap on author name → moderation sheet (block / report)
+      // Tap on a comment author name → moderation sheet
       if (target.closest('.comment-user')) {
         event.preventDefault();
         const commentLi = target.closest('.comment') as HTMLElement | null;
         if (commentLi) {
           const user = commentLi.dataset.user || '';
-          const commentId = Number(commentLi.dataset.id);
-          showModerationSheet({
-            kind: 'comment',
-            id: commentId,
-            user,
-            onChange: () => {
-              page.querySelectorAll(`.comment[data-user="${CSS.escape(user)}"]`)
-                .forEach(el => el.remove());
-            }
-          });
+          showModerationSheet({ user, onChange: () => blockUserInPage(page, user) });
         }
         return;
       }

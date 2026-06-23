@@ -28,7 +28,7 @@ function renderAboutPage(): void {
           <p>Story data via the official <a href="https://github.com/HackerNews/API" target="_blank" rel="noopener noreferrer">Hacker News Firebase API</a>.</p>
           <p>Comment trees via the <a href="https://hn.algolia.com/api" target="_blank" rel="noopener noreferrer">HN Search API</a> by Algolia.</p>
           <h3>Content &amp; Moderation</h3>
-          <p>HN Reader displays public, user-generated content from Hacker News, which is not created or moderated by this app. Tap any author's name on a story or comment to block that user or report objectionable content. We review reports and act within 24 hours.</p>
+          <p>HN Reader is a read-only client. It displays public content from Hacker News, which is a moderated platform governed by the <a href="https://news.ycombinator.com/newsguidelines.html" target="_blank" rel="noopener noreferrer">Hacker News guidelines</a>. You can also tap any author's name on a story or comment to block that user — their stories are hidden and their comments are replaced with “[blocked]”.</p>
           <p><a href="https://kagelump.github.io/hn/support/" target="_blank" rel="noopener noreferrer">Support &amp; Content Policy</a></p>
           <p><a href="https://kagelump.github.io/hn/privacy/" target="_blank" rel="noopener noreferrer">Privacy Policy</a></p>
           <h3>Open Source Licenses</h3>

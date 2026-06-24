@@ -47,9 +47,9 @@ html, body {
 }
 
 html {
-    font-size: 15px;
-    --theme-color: #ff6600;
-    --text-brightness: 50;
+    font-size: 16px;
+    --theme-color: #2196f3;
+    --text-brightness: 100;
     --text-color: hsl(210, 8%, calc(15% + var(--text-brightness) * 0.2%));
 }
 

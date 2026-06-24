@@ -99,13 +99,13 @@ export function renderSettingsPage(): void {
   const page = document.querySelector('.page-settings') as HTMLElement | null;
   if (!page) return;
 
-  const currentTheme = store.get<string>('theme') || 'default';
-  const currentFontFamily = store.get<string>('fontFamily') || 'source-sans';
-  const currentTextSize = store.get<number>('textSize') || 15;
-  const currentThemeColor = store.get<string>('themeColor') || '#ff6600';
+  const currentTheme = store.get<string>('theme') || 'dark';
+  const currentFontFamily = store.get<string>('fontFamily') || 'sf';
+  const currentTextSize = store.get<number>('textSize') || 16;
+  const currentThemeColor = store.get<string>('themeColor') || '#2196f3';
   const animationEnabled = store.get<string>('animation') !== 'no';
   const hideRead = store.get<string>('hideReadComment') || 'yes';
-  const currentTextBrightness = store.get<number>('textBrightness') ?? 50;
+  const currentTextBrightness = store.get<number>('textBrightness') ?? 100;
   const isNative = Capacitor.isNativePlatform();
   const corsProxy = store.get<string>('corsProxy') || 'https://api.allorigins.win/raw?url=';
   const blockedUsers = getBlockedUsers();
@@ -263,7 +263,7 @@ export function renderSettingsPage(): void {
       page.querySelectorAll('[data-theme] .radio-dot').forEach(d => d.classList.remove('selected'));
       el.querySelector('.radio-dot')?.classList.add('selected');
       // Re-apply text brightness since mapping differs by theme
-      const currentBrightness = store.get<number>('textBrightness') ?? 50;
+      const currentBrightness = store.get<number>('textBrightness') ?? 100;
       applyTextBrightness(currentBrightness);
     });
   });

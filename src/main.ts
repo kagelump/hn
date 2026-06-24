@@ -26,13 +26,15 @@ document.querySelector('html')?.classList.add('show-app');
 // Initialize appearance settings from localStorage
 const htmlNode = document.querySelector('html');
 if (htmlNode) {
-  // Theme
-  const theme = store.get<string>('theme') || 'default';
+  // Theme (index.html defaults to theme-dark for first paint; reconcile with
+  // any stored preference)
+  const theme = store.get<string>('theme') || 'dark';
+  htmlNode.classList.remove('theme-default', 'theme-dark');
   htmlNode.classList.add(`theme-${theme}`);
   htmlNode.setAttribute('data-theme', theme);
 
   // Font family
-  const fontFamily = store.get<string>('fontFamily') || 'source-sans';
+  const fontFamily = store.get<string>('fontFamily') || 'sf';
   const fontFamilyMap: Record<string, string> = {
     'source-sans': "'Source Sans Pro', Helvetica Neue, Segoe UI, Arial, sans-serif",
     'roboto-slab': "'Roboto Slab', Georgia, serif",
@@ -45,24 +47,18 @@ if (htmlNode) {
   }
 
   // Text size
-  const textSize = store.get<number>('textSize');
-  if (textSize) {
-    htmlNode.style.fontSize = `${textSize}px`;
-    htmlNode.setAttribute('data-text-size', String(textSize));
-  }
+  const textSize = store.get<number>('textSize') || 16;
+  htmlNode.style.fontSize = `${textSize}px`;
+  htmlNode.setAttribute('data-text-size', String(textSize));
 
   // Theme color
-  const themeColor = store.get<string>('themeColor');
-  if (themeColor) {
-    htmlNode.style.setProperty('--theme-color', themeColor);
-    htmlNode.setAttribute('data-theme-color', themeColor);
-  }
+  const themeColor = store.get<string>('themeColor') || '#2196f3';
+  htmlNode.style.setProperty('--theme-color', themeColor);
+  htmlNode.setAttribute('data-theme-color', themeColor);
 
   // Text brightness
-  const textBrightness = store.get<number>('textBrightness');
-  if (textBrightness != null) {
-    htmlNode.style.setProperty('--text-brightness', `${textBrightness}`);
-  }
+  const textBrightness = store.get<number>('textBrightness') ?? 100;
+  htmlNode.style.setProperty('--text-brightness', `${textBrightness}`);
 
   // Animation
   const animation = store.get<string>('animation');

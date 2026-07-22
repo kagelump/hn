@@ -1,6 +1,13 @@
 import { describe, it, expect, beforeEach, vi, afterEach } from 'vitest';
 import { PubSub } from '../../utils/pubsub';
-import { goHome, navigateTo, showPage, goBack, initRouter } from '../router';
+import {
+  getBackPageClass,
+  goHome,
+  navigateTo,
+  showPage,
+  goBack,
+  initRouter
+} from '../router';
 
 vi.mock('../data', () => ({
   cancelPendingRequests: vi.fn()
@@ -22,7 +29,7 @@ describe('router', () => {
       </div>
     `;
     PubSub.clear();
-    window.location.hash = '';
+    window.history.replaceState({ __hnIndex: 0, __hnRoute: '#/' }, '', '/#/');
 
     // Track popstate listeners so initRouter can be cleaned up between tests
     const originalAdd = window.addEventListener.bind(window);
@@ -44,7 +51,7 @@ describe('router', () => {
 
   afterEach(() => {
     PubSub.clear();
-    window.location.hash = '';
+    window.history.replaceState({ __hnIndex: 0, __hnRoute: '#/' }, '', '/#/');
     popstateListeners.forEach(listener => window.removeEventListener('popstate', listener));
     popstateListeners.length = 0;
     vi.restoreAllMocks();
@@ -73,11 +80,29 @@ describe('router', () => {
 
   describe('goBack', () => {
     it('calls window.history.back()', () => {
+      window.history.replaceState({
+        __hnIndex: 1,
+        __hnRoute: '#/article/123',
+        __hnPreviousRoute: '#/'
+      }, '', '/#/article/123');
       const backSpy = vi.spyOn(window.history, 'back').mockImplementation(() => {});
 
-      goBack();
+      const usedHistory = goBack();
 
+      expect(usedHistory).toBe(true);
       expect(backSpy).toHaveBeenCalledTimes(1);
+    });
+
+    it('falls back to home for a direct deep link without in-app history', () => {
+      window.history.replaceState({ __hnIndex: 0, __hnRoute: '#/article/123' }, '', '/#/article/123');
+      const showHomeSpy = vi.fn();
+      PubSub.subscribe('show-home', showHomeSpy);
+
+      const usedHistory = goBack();
+
+      expect(usedHistory).toBe(false);
+      expect(window.location.hash).toBe('#/');
+      expect(showHomeSpy).toHaveBeenCalledTimes(1);
     });
   });
 
@@ -94,7 +119,7 @@ describe('router', () => {
     });
 
     it('handles the initial route when window.location.hash is set', () => {
-      window.location.hash = '#/comments/123';
+      window.history.replaceState({}, '', '/#/comments/123');
       const showCommentsSpy = vi.fn();
       PubSub.subscribe('show-comments', showCommentsSpy);
 
@@ -102,6 +127,17 @@ describe('router', () => {
 
       expect(showCommentsSpy).toHaveBeenCalledTimes(1);
       expect(showCommentsSpy).toHaveBeenCalledWith(123);
+    });
+
+    it('handles the initial home route even when the URL has no hash', () => {
+      window.history.replaceState({}, '', '/');
+      const showHomeSpy = vi.fn();
+      PubSub.subscribe('show-home', showHomeSpy);
+
+      initRouter();
+
+      expect(window.location.hash).toBe('#/');
+      expect(showHomeSpy).toHaveBeenCalledTimes(1);
     });
   });
 
@@ -126,6 +162,21 @@ describe('router', () => {
 
       expect(spy).toHaveBeenCalledTimes(1);
       expect(spy).toHaveBeenCalledWith(123);
+    });
+
+    it('records the actual previous route for interactive back gestures', () => {
+      navigateTo('#/article/123');
+      navigateTo('#/comments/123');
+
+      expect(getBackPageClass()).toBe('page-article-content');
+    });
+
+    it('does not push a duplicate history entry for the current route', () => {
+      const pushSpy = vi.spyOn(window.history, 'pushState');
+
+      navigateTo('#/');
+
+      expect(pushSpy).not.toHaveBeenCalled();
     });
 
     it('routes to article for #/article/:id', () => {
@@ -210,7 +261,7 @@ describe('router', () => {
       const homePage = document.querySelector('.page-home') as HTMLElement;
       homePage.classList.remove('show-page');
 
-      showPage('page-home');
+      showPage('page-home', undefined, 'back');
       expect(articlePage.classList.contains('exit-right')).toBe(true);
 
       articlePage.dispatchEvent(new TransitionEvent('transitionend'));
@@ -239,7 +290,7 @@ describe('router', () => {
       const homePage = document.querySelector('.page-home') as HTMLElement;
       homePage.classList.remove('show-page');
 
-      showPage('page-home');
+      showPage('page-home', undefined, 'back');
       expect(articlePage.classList.contains('exit-right')).toBe(true);
 
       vi.advanceTimersByTime(500);
@@ -247,6 +298,35 @@ describe('router', () => {
       expect(articlePage.classList.contains('exit-right')).toBe(false);
 
       vi.useRealTimers();
+    });
+
+    it('ignores bubbled descendant transition events', () => {
+      const homePage = document.querySelector('.page-home') as HTMLElement;
+      const child = document.createElement('div');
+      homePage.appendChild(child);
+
+      showPage('page-article-content');
+      child.dispatchEvent(new TransitionEvent('transitionend', {
+        bubbles: true,
+        propertyName: 'transform'
+      }));
+
+      expect(homePage.classList.contains('exit-left')).toBe(true);
+
+      homePage.dispatchEvent(new TransitionEvent('transitionend', {
+        propertyName: 'transform'
+      }));
+      expect(homePage.classList.contains('exit-left')).toBe(false);
+    });
+
+    it('does not hide and re-show a page that is already active', () => {
+      const hiddenSpy = vi.fn();
+      PubSub.subscribe('onPageHidden', hiddenSpy);
+
+      showPage('page-home', 'Hacker News');
+
+      expect(hiddenSpy).not.toHaveBeenCalled();
+      expect(document.querySelectorAll('.show-page')).toHaveLength(1);
     });
   });
 });

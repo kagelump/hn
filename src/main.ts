@@ -11,7 +11,15 @@ import { prerender } from './utils/template';
 import { data } from './modules/data';
 import { loading } from './modules/ui';
 import { store } from './utils/storage';
-import { initRouter, goHome, navigateTo, goBack, showPage } from './modules/router';
+import {
+  getRouteRevision,
+  initRouter,
+  isCurrentRoute,
+  isRouteRevision,
+  navigateTo,
+  goBack,
+  showPage
+} from './modules/router';
 import { initCommentsPage } from './modules/comments';
 import { initArticlePage } from './modules/article';
 import { initSettingsPage } from './modules/settings';
@@ -19,6 +27,7 @@ import { initAboutPage } from './modules/about';
 import { initPerformancePage } from './modules/performance-page';
 import { getBlockedUsers } from './modules/moderation';
 import * as pullToRefresh from './modules/pullToRefresh';
+import { setupSwipeGesture } from './modules/swipeBack';
 
 // Add HTML class to show app
 document.querySelector('html')?.classList.add('show-app');
@@ -83,17 +92,18 @@ function setupClickHandlers(): void {
 
     const href = link.getAttribute('href') || '';
 
+    // Back controls pop the in-app history stack and safely fall back to home
+    // for direct/deep-link entries.
+    if (link.classList.contains('back-home') || link.closest('.back-home')) {
+      event.preventDefault();
+      goBack();
+      return;
+    }
+
     // Handle hash-based navigation links
     if (href.startsWith('#/')) {
       event.preventDefault();
       navigateTo(href);
-      return;
-    }
-
-    // Handle back-home links
-    if (link.classList.contains('back-home') || link.closest('.back-home')) {
-      event.preventDefault();
-      goHome();
       return;
     }
 
@@ -175,157 +185,6 @@ function closeSubmenu(): void {
   document.querySelector('.submenu')?.parentElement?.classList.remove('show-submenu');
 }
 
-// Swipe-to-go-back gesture
-function setupSwipeGesture(): void {
-  // Parallax factor for the previous page revealed underneath the swipe (iOS uses ~0.3)
-  const PARALLAX = 0.3;
-
-  let startX = 0;
-  let startY = 0;
-  let startTime = 0;
-  let currentPage: HTMLElement | null = null;
-  let prevPage: HTMLElement | null = null;
-  let swiping = false;
-
-  // True only if the touch began inside an element the user can actually scroll
-  // horizontally (overflow-x auto/scroll). `overflow-x: hidden` containers clip
-  // their content but are NOT user-scrollable, so they must not block the gesture.
-  function startsInHorizontalScroller(el: Element | null): boolean {
-    let node: Element | null = el;
-    while (node && node !== document.body) {
-      const overflowX = getComputedStyle(node).overflowX;
-      if ((overflowX === 'auto' || overflowX === 'scroll') &&
-          node.scrollWidth > node.clientWidth + 1) {
-        return true;
-      }
-      node = node.parentElement;
-    }
-    return false;
-  }
-
-  // Position the previous page for the given progress (0 = swipe start, 1 = fully revealed)
-  function setPrevParallax(progress: number): void {
-    if (!prevPage) return;
-    const offset = -window.innerWidth * PARALLAX * (1 - progress);
-    prevPage.style.transform = `translate3d(${offset}px, 0, 0)`;
-    prevPage.style.webkitTransform = `translate3d(${offset}px, 0, 0)`;
-  }
-
-  document.addEventListener('touchstart', (e: TouchEvent) => {
-    const touch = e.touches[0];
-    startX = touch.clientX;
-    startY = touch.clientY;
-    startTime = Date.now();
-    swiping = false;
-    prevPage = null;
-
-    const homePage = document.querySelector('.page-home') as HTMLElement | null;
-    if (homePage?.classList.contains('show-page')) {
-      currentPage = null;
-      return;
-    }
-
-    if (startX < 30 && !startsInHorizontalScroller(e.target as Element)) {
-      currentPage = document.querySelector('.show-page') as HTMLElement | null;
-      // The back gesture returns to home, so home is the page revealed underneath
-      prevPage = homePage;
-    } else {
-      currentPage = null;
-    }
-  }, { passive: true });
-
-  document.addEventListener('touchmove', (e: TouchEvent) => {
-    if (!currentPage) return;
-
-    const touch = e.touches[0];
-    const deltaX = touch.clientX - startX;
-    const deltaY = Math.abs(touch.clientY - startY);
-
-    if (!swiping) {
-      if (deltaX > 10 && deltaX > deltaY) {
-        swiping = true;
-        currentPage.classList.add('swiping');
-        prevPage?.classList.add('swiping');
-      } else if (deltaY > 10) {
-        currentPage = null;
-        prevPage = null;
-        return;
-      } else {
-        return;
-      }
-    }
-
-    e.preventDefault();
-    const clampedX = Math.max(0, deltaX);
-    currentPage.style.transform = `translate3d(${clampedX}px, 0, 0)`;
-    currentPage.style.webkitTransform = `translate3d(${clampedX}px, 0, 0)`;
-    setPrevParallax(clampedX / window.innerWidth);
-  }, { passive: false });
-
-  document.addEventListener('touchend', (e: TouchEvent) => {
-    if (!currentPage || !swiping) {
-      currentPage = null;
-      prevPage = null;
-      swiping = false;
-      return;
-    }
-
-    const endX = e.changedTouches[0].clientX;
-    const deltaX = endX - startX;
-    const duration = Date.now() - startTime;
-    const velocity = deltaX / duration;
-    const viewportWidth = window.innerWidth;
-    const pastThreshold = deltaX > viewportWidth * 0.4 || velocity > 0.5;
-
-    currentPage.classList.remove('swiping');
-    currentPage.classList.add('swipe-settle');
-    prevPage?.classList.remove('swiping');
-    prevPage?.classList.add('swipe-settle');
-
-    const page = currentPage;
-    const prev = prevPage;
-
-    if (pastThreshold) {
-      page.style.transform = `translate3d(${viewportWidth}px, 0, 0)`;
-      page.style.webkitTransform = `translate3d(${viewportWidth}px, 0, 0)`;
-      setPrevParallax(1); // bring previous page fully into view
-      const onEnd = () => {
-        page.removeEventListener('transitionend', onEnd);
-        page.classList.remove('swipe-settle');
-        // Navigate first (home gets `show-page` at translate 0, matching our inline
-        // transform), then clear the inline transform so the class takes over seamlessly.
-        goBack();
-        if (prev) {
-          prev.classList.remove('swipe-settle');
-          prev.style.transform = '';
-          prev.style.webkitTransform = '';
-        }
-      };
-      page.addEventListener('transitionend', onEnd);
-    } else {
-      page.style.transform = 'translate3d(0, 0, 0)';
-      page.style.webkitTransform = 'translate3d(0, 0, 0)';
-      setPrevParallax(0); // send previous page back to its parked parallax offset
-      const onEnd = () => {
-        page.removeEventListener('transitionend', onEnd);
-        page.classList.remove('swipe-settle');
-        page.style.transform = '';
-        page.style.webkitTransform = '';
-        if (prev) {
-          prev.classList.remove('swipe-settle');
-          prev.style.transform = '';
-          prev.style.webkitTransform = '';
-        }
-      };
-      page.addEventListener('transitionend', onEnd);
-    }
-
-    currentPage = null;
-    prevPage = null;
-    swiping = false;
-  }, { passive: true });
-}
-
 // Initialize home page
 function initHomePage(): void {
   const homePage = document.querySelector('.page-home');
@@ -367,8 +226,12 @@ function initHomePage(): void {
 
     loading.hide();
     homePageBody!.innerHTML = `<ul class="list">${html}</ul>`;
-    homePage!.classList.add('show-page');
     PubSub.publish('reload-home-complete');
+  }
+
+  function renderHomeIfCurrent(revision: number, items: Array<Record<string, unknown>>): void {
+    if (!isRouteRevision(revision) || !isCurrentRoute('home')) return;
+    renderList(items);
   }
 
   function appendList(items: Array<Record<string, unknown>>): void {
@@ -401,25 +264,28 @@ function initHomePage(): void {
   }
 
   PubSub.subscribe('load-home', () => {
+    const revision = getRouteRevision();
     showPage('page-home', 'Hacker News');
     data.getArticles((items) => {
-      renderList(items as unknown as Array<Record<string, unknown>>);
+      renderHomeIfCurrent(revision, items as unknown as Array<Record<string, unknown>>);
     }, true);
   });
 
   PubSub.subscribe('show-home', () => {
+    const revision = getRouteRevision();
     showPage('page-home', 'Hacker News');
     if (!data.cache().list) {
       loading.show();
     }
     data.getArticles((items) => {
-      renderList(items as unknown as Array<Record<string, unknown>>);
+      renderHomeIfCurrent(revision, items as unknown as Array<Record<string, unknown>>);
     }, false);
   });
 
   PubSub.subscribe('reload-home', () => {
+    const revision = getRouteRevision();
     data.getArticles((items) => {
-      renderList(items as unknown as Array<Record<string, unknown>>);
+      renderHomeIfCurrent(revision, items as unknown as Array<Record<string, unknown>>);
     }, true).catch((error) => {
       console.error('Failed to reload home:', error);
       loading.setStatus('Could not refresh stories');
@@ -430,17 +296,18 @@ function initHomePage(): void {
 
   PubSub.subscribe('filter-home', (type: unknown) => {
     const filterType = String(type);
+    const revision = getRouteRevision();
     showPage('page-home', 'Hacker News');
 
     if (filterType === 'todayTop10' || filterType === 'yesterdayTop10' || filterType === 'weekTop10') {
       // These require date-based queries not supported by Firebase API directly
       // Fall back to top stories for now
       data.getArticles((items) => {
-        renderList(items as unknown as Array<Record<string, unknown>>);
+        renderHomeIfCurrent(revision, items as unknown as Array<Record<string, unknown>>);
       }, true);
     } else {
       data.getArticlesByType(filterType, (items) => {
-        renderList(items as unknown as Array<Record<string, unknown>>);
+        renderHomeIfCurrent(revision, items as unknown as Array<Record<string, unknown>>);
       });
     }
   });
@@ -480,23 +347,24 @@ function initHomePage(): void {
 function init(): void {
   console.log('Initializing Hacker News Reader v' + config.v.app);
 
+  // A route change replaces the global home-list loader with page-local loading
+  // states, so an aborted list request can never leave a spinner over a detail page.
+  PubSub.subscribe('route-changing', () => loading.hide());
   setupClickHandlers();
   setupSwipeGesture();
   initHomePage();
-  initRouter();
   initCommentsPage();
   initArticlePage();
   initSettingsPage();
   initAboutPage();
   initPerformancePage();
+  // Register every route subscriber before processing the initial URL so native
+  // deep links cannot publish into an empty event bus.
+  initRouter();
 
   // iOS convention: tapping the status bar scrolls the view to the top
   // The native AppDelegate swizzles UIStatusBarManager and calls scrollTo via evaluateJavaScript
 
-  // Load home page on start
-  if (!window.location.hash || window.location.hash === '#/' || window.location.hash === '#') {
-    PubSub.publish('show-home');
-  }
 }
 
 // Start the app when DOM is ready

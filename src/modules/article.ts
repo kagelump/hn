@@ -2,7 +2,13 @@
 import { Readability } from '@mozilla/readability';
 import { Capacitor, CapacitorHttp } from '@capacitor/core';
 import { data } from './data';
-import { showPage } from './router';
+import {
+  getRouteRevision,
+  getBackPageClass,
+  isCurrentRoute,
+  isRouteRevision,
+  showPage
+} from './router';
 import { PubSub } from '../utils/pubsub';
 import { store } from '../utils/storage';
 import { escapeHtml } from '../utils/template';
@@ -65,11 +71,19 @@ export function parseWithReadability(html: string, url: string): { title: string
   };
 }
 
-async function loadReaderContent(url: string, container: HTMLElement): Promise<void> {
+function articleRouteIsCurrent(articleId: number, revision: number): boolean {
+  return isRouteRevision(revision) && isCurrentRoute('article', articleId);
+}
+
+async function loadReaderContent(
+  url: string,
+  container: HTMLElement,
+  articleId: number,
+  revision: number
+): Promise<void> {
   try {
     const html = await fetchArticleHtml(url);
-    // Bail if the user navigated away while fetching
-    if (!container.isConnected) return;
+    if (!container.isConnected || !articleRouteIsCurrent(articleId, revision)) return;
 
     const parsed = parseWithReadability(html, url);
 
@@ -90,7 +104,7 @@ async function loadReaderContent(url: string, container: HTMLElement): Promise<v
     `;
   } catch (err) {
     console.error('Reader mode failed:', err);
-    if (container.isConnected) {
+    if (container.isConnected && articleRouteIsCurrent(articleId, revision)) {
       container.innerHTML = '<p class="reader-error">Failed to load article. Try opening the link directly.</p>';
     }
   }
@@ -136,11 +150,27 @@ async function shareArticle(): Promise<void> {
   }
 }
 
-function renderArticlePage(article: HNItem): void {
+function getArticleStatusHtml(content: string): string {
+  return `
+    <div class="header-container">
+      <header class="header">
+        <ul class="l-menu list-inline menu">
+          <li><a href="#/" class="back-home"><span class="icon icon-arrow-left"></span></a></li>
+        </ul>
+        <h1>Article</h1>
+        <ul class="r-menu list-inline menu"></ul>
+      </header>
+    </div>
+    <section class="pagebd-container"><div class="bd">${content}</div></section>
+  `;
+}
+
+function renderArticlePage(article: HNItem, revision: number): void {
   const page = document.querySelector('.page-article-content') as HTMLElement | null;
-  if (!page) return;
+  if (!page || !articleRouteIsCurrent(article.id, revision)) return;
 
   page.dataset.articleId = String(article.id);
+  page.dataset.routeRevision = String(revision);
   const hasExternalUrl = !!article.url;
 
   const headerHtml = `
@@ -221,7 +251,7 @@ function renderArticlePage(article: HNItem): void {
   if (hasExternalUrl && article.url) {
     const readerContainer = page.querySelector('.article-reader') as HTMLElement | null;
     if (readerContainer) {
-      loadReaderContent(article.url, readerContainer);
+      loadReaderContent(article.url, readerContainer, article.id, revision);
     }
   }
 }
@@ -229,10 +259,22 @@ function renderArticlePage(article: HNItem): void {
 export function initArticlePage(): void {
   PubSub.subscribe('show-article', (id: unknown) => {
     const articleId = Number(id);
+    const revision = getRouteRevision();
+    const page = document.querySelector('.page-article-content') as HTMLElement | null;
+    if (page) {
+      page.dataset.articleId = String(articleId);
+      page.dataset.routeRevision = String(revision);
+      page.innerHTML = getArticleStatusHtml('<div class="show-loading"><div class="circle"></div></div>');
+    }
     showPage('page-article-content', 'Article');
 
-    data.getArticleMeta(articleId, (article) => {
-      renderArticlePage(article);
+    void data.getArticleMeta(articleId, (article) => {
+      renderArticlePage(article, revision);
+    }).catch((error) => {
+      console.error('Failed to load article:', error);
+      if (page && articleRouteIsCurrent(articleId, revision)) {
+        page.innerHTML = getArticleStatusHtml('<p class="reader-error">Failed to load this article.</p>');
+      }
     });
   });
 
@@ -240,7 +282,17 @@ export function initArticlePage(): void {
     if (typeof className === 'string' && className.includes('page-article-content')) {
       const page = document.querySelector('.page-article-content');
       if (page) {
-        setTimeout(() => { page.innerHTML = ''; }, 450);
+        // Keep the actual previous page rendered so the native interactive-back
+        // gesture can reveal it. Other hidden article content is reclaimed after
+        // the transition.
+        if (getBackPageClass() === 'page-article-content') return;
+        const hiddenRevision = (page as HTMLElement).dataset.routeRevision;
+        setTimeout(() => {
+          if (!page.classList.contains('show-page') &&
+              (page as HTMLElement).dataset.routeRevision === hiddenRevision) {
+            page.innerHTML = '';
+          }
+        }, 450);
       }
     }
   });

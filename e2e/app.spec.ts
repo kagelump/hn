@@ -107,6 +107,58 @@ test.describe('HN Reader', () => {
 
     // Home page should be visible again
     await expect(page.locator('.page-home')).toHaveClass(/show-page/, { timeout: 5000 });
+    await expect(page).toHaveURL(/\/#\/$/);
+  });
+
+  test('direct comments deep links are handled after all pages initialize', async ({ page }) => {
+    await page.goto('/');
+    await expect(page.locator('.page-home .list li')).toHaveCount(30, { timeout: 15000 });
+    const commentsHref = await page.locator('.page-home .list li .comments').first().getAttribute('href');
+    if (!commentsHref) throw new Error('Comments link was missing an href');
+
+    await page.goto(`/${commentsHref}`);
+
+    await expect(page.locator('.page-article-comments')).toHaveClass(/show-page/, { timeout: 5000 });
+    await expect(page.locator('.page-article-comments .article-header h2')).toBeVisible({ timeout: 30000 });
+  });
+
+  test('back from comments opened inside an article returns to that article', async ({ page }) => {
+    await page.goto('/');
+    await expect(page.locator('.page-home .list li')).toHaveCount(30, { timeout: 15000 });
+
+    await page.locator('.page-home .list li .story').first().click();
+    await expect(page.locator('.page-article-content')).toHaveClass(/show-page/, { timeout: 5000 });
+    const articleUrl = page.url();
+    await page.locator('.page-article-content .show-comments').click();
+    await expect(page.locator('.page-article-comments')).toHaveClass(/show-page/, { timeout: 5000 });
+
+    await page.locator('.page-article-comments .back-home').click();
+
+    await expect(page.locator('.page-article-content')).toHaveClass(/show-page/, { timeout: 5000 });
+    await expect(page).toHaveURL(articleUrl);
+  });
+
+  test('edge swipe suppresses a click on the revealed comments strip', async ({ page }) => {
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.goto('/');
+    await expect(page.locator('.page-home .list li')).toHaveCount(30, { timeout: 15000 });
+    await page.locator('.page-home .list li .comments').first().click();
+    const commentsPage = page.locator('.page-article-comments');
+    await expect(commentsPage).toHaveClass(/show-page/, { timeout: 5000 });
+
+    const start = { identifier: 7, clientX: 5, clientY: 300 };
+    const moved = { identifier: 7, clientX: 250, clientY: 300 };
+    await commentsPage.dispatchEvent('touchstart', { touches: [start], changedTouches: [start] });
+    await commentsPage.dispatchEvent('touchmove', { touches: [moved], changedTouches: [moved] });
+    await commentsPage.dispatchEvent('touchend', { touches: [], changedTouches: [moved] });
+
+    // Model a right-hand palm contact landing on the full-height comments target
+    // while the home page is visually revealed underneath the settling page.
+    await page.locator('.page-home .list li .comments').first().dispatchEvent('click');
+
+    await expect(page.locator('.page-home')).toHaveClass(/show-page/, { timeout: 5000 });
+    await expect(page).toHaveURL(/\/#\/$/);
+    await expect(page.locator('.pages-container')).not.toHaveClass(/navigation-locked/);
   });
 
   test('submenu filters work', async ({ page }) => {

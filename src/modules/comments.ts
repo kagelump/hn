@@ -1,6 +1,12 @@
 // Comments page module
 import { data } from './data';
-import { showPage } from './router';
+import {
+  getRouteRevision,
+  getBackPageClass,
+  isCurrentRoute,
+  isRouteRevision,
+  showPage
+} from './router';
 import { PubSub } from '../utils/pubsub';
 import { escapeHtml } from '../utils/template';
 import { filterBlockedComments, showModerationSheet, BLOCKED_PLACEHOLDER } from './moderation';
@@ -116,11 +122,16 @@ function getArticleMetaHtml(article: HNItem): string {
   `;
 }
 
-function renderCommentsIntoPage(article: HNItem): void {
+function commentsRouteIsCurrent(articleId: number, revision: number): boolean {
+  return isRouteRevision(revision) && isCurrentRoute('comments', articleId);
+}
+
+function renderCommentsIntoPage(article: HNItem, articleId: number, revision: number): void {
   const page = document.querySelector('.page-article-comments') as HTMLElement | null;
-  if (!page) return;
+  if (!page || article.id !== articleId || !commentsRouteIsCurrent(articleId, revision)) return;
 
   page.dataset.articleId = String(article.id);
+  page.dataset.routeRevision = String(revision);
 
   const allComments = filterBlockedComments(article.comments || []);
   const commentsHtml = allComments.length
@@ -277,12 +288,23 @@ export function initCommentsPage(): void {
 
   PubSub.subscribe('show-comments', (id: unknown) => {
     const articleId = Number(id);
+    const revision = getRouteRevision();
+    const page = document.querySelector('.page-article-comments') as HTMLElement | null;
+    if (page) {
+      page.dataset.articleId = String(articleId);
+      page.dataset.routeRevision = String(revision);
+      page.innerHTML = `
+        ${getHeaderHtml()}
+        <section class="pagebd-container">
+          <div class="bd"><div class="show-loading"><div class="circle"></div></div></div>
+        </section>
+      `;
+    }
     showPage('page-article-comments', 'Comments');
 
     const cached = data.getArticleById(articleId);
-    if (cached) {
+    if (cached && commentsRouteIsCurrent(articleId, revision)) {
       // Phase 1: render header + article meta instantly from cache
-      const page = document.querySelector('.page-article-comments') as HTMLElement | null;
       if (page) {
         page.innerHTML = `
           ${getHeaderHtml(cached.sortWarning)}
@@ -295,13 +317,25 @@ export function initCommentsPage(): void {
         `;
       }
       // Phase 2: fetch full comment tree and fill in
-      data.getArticleComments(articleId, (article) => {
-        renderCommentsIntoPage(article);
+      void data.getArticleComments(articleId, (article) => {
+        renderCommentsIntoPage(article, articleId, revision);
+      }).catch((error) => {
+        console.error('Failed to load comments:', error);
+        if (page && commentsRouteIsCurrent(articleId, revision)) {
+          const body = page.querySelector('.bd');
+          if (body) body.innerHTML = '<p class="no-comments">Failed to load comments.</p>';
+        }
       });
     } else {
       // Cold load: render everything after fetch
-      data.getArticleComments(articleId, (article) => {
-        renderCommentsIntoPage(article);
+      void data.getArticleComments(articleId, (article) => {
+        renderCommentsIntoPage(article, articleId, revision);
+      }).catch((error) => {
+        console.error('Failed to load comments:', error);
+        if (page && commentsRouteIsCurrent(articleId, revision)) {
+          const body = page.querySelector('.bd');
+          if (body) body.innerHTML = '<p class="no-comments">Failed to load comments.</p>';
+        }
       });
     }
   });
@@ -310,7 +344,14 @@ export function initCommentsPage(): void {
     if (typeof className === 'string' && className.includes('page-article-comments')) {
       const page = document.querySelector('.page-article-comments');
       if (page) {
-        setTimeout(() => { page.innerHTML = ''; }, 450);
+        if (getBackPageClass() === 'page-article-comments') return;
+        const hiddenRevision = (page as HTMLElement).dataset.routeRevision;
+        setTimeout(() => {
+          if (!page.classList.contains('show-page') &&
+              (page as HTMLElement).dataset.routeRevision === hiddenRevision) {
+            page.innerHTML = '';
+          }
+        }, 450);
       }
     }
   });

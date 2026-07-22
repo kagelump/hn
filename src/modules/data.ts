@@ -452,7 +452,9 @@ export async function getArticleMeta(id: number, callback?: (data: HNItem) => vo
 
   const t0 = Date.now();
   try {
-    const raw = await fetchItem(id);
+    cancelPendingRequests();
+    abortController = new AbortController();
+    const raw = await fetchItem(id, abortController.signal);
     perf.update(String(id), 'fetch', Date.now() - t0);
 
     const item = transformItem(raw);
@@ -460,6 +462,7 @@ export async function getArticleMeta(id: number, callback?: (data: HNItem) => vo
 
     if (callback) callback(item);
   } catch (error) {
+    if ((error as Error).name === 'AbortError') return;
     console.error('Failed to fetch article meta:', error);
     throw error;
   }

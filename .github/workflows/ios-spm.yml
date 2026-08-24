@@ -1,0 +1,44 @@
+name: iOS SwiftPM lockfile check
+
+# Guards against a stale Package.resolved (which breaks Xcode Cloud, where
+# automatic package resolution is disabled). Runs the static layer of
+# scripts/check-spm-resolved.mjs — the resolver layer self-skips without Xcode,
+# so this needs no macOS runner, no Xcode, and no npm install.
+
+on:
+  push:
+    branches: [master]
+    paths:
+      - 'ios/App/CapApp-SPM/Package.swift'
+      - 'ios/App/App.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved'
+      - 'capacitor.config.ts'
+      - 'package.json'
+      - 'scripts/check-spm-resolved.mjs'
+      - '.github/workflows/ios-spm.yml'
+  pull_request:
+    paths:
+      - 'ios/App/CapApp-SPM/Package.swift'
+      - 'ios/App/App.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved'
+      - 'capacitor.config.ts'
+      - 'package.json'
+      - 'scripts/check-spm-resolved.mjs'
+      - '.github/workflows/ios-spm.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  check-spm:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Check SwiftPM lockfile is in sync
+        run: node scripts/check-spm-resolved.mjs

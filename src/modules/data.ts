@@ -201,6 +201,67 @@ export function extractHnPageData(html: string, storyId: number): HnPageData {
   return { orderedIds, colorClasses };
 }
 
+// Build a nested comment tree directly from the HN HTML page. Used as a fallback
+// when Algolia can't supply the comment tree. The HN page only renders the "top"
+// comments (large threads are truncated), so this returns a partial tree.
+export function extractHnComments(html: string, storyId: number): HNComment[] {
+  const roots: HNComment[] = [];
+
+  let doc: Document;
+  try {
+    doc = new DOMParser().parseFromString(html, 'text/html');
+  } catch {
+    return roots;
+  }
+
+  const rows = doc.querySelectorAll('tr.comtr[id], tr.athing.comtr[id]');
+
+  // Stack of ancestors keyed by their indent depth. A row at indent d nests under
+  // the most recent row with a smaller indent.
+  const stack: { indent: number; node: HNComment }[] = [];
+
+  for (const row of rows) {
+    const id = Number(row.id);
+    if (!id || id === storyId) continue;
+
+    const indentCell = row.querySelector('td.ind');
+    const indent = indentCell ? Number(indentCell.getAttribute('indent')) || 0 : 0;
+
+    const commtext = row.querySelector('.commtext');
+    const userEl = row.querySelector('.hnuser');
+    const ageEl = row.querySelector('.age');
+
+    let colorClass: string | undefined;
+    if (commtext) {
+      const cls = commtext.className.split(/\s+/).find(c => /^c[a-fA-F0-9]{2}$/.test(c));
+      if (cls && cls !== 'c00') colorClass = cls;
+    }
+
+    const node: HNComment = {
+      id,
+      user: userEl?.textContent?.trim() || '[deleted]',
+      time_ago: ageEl?.textContent?.trim() || '',
+      content: commtext ? commtext.innerHTML : (row.querySelector('.comment')?.textContent?.trim() || ''),
+      comments: []
+    };
+    if (colorClass) node.colorClass = colorClass;
+
+    while (stack.length > 0 && stack[stack.length - 1].indent >= indent) {
+      stack.pop();
+    }
+
+    if (stack.length === 0) {
+      roots.push(node);
+    } else {
+      stack[stack.length - 1].node.comments!.push(node);
+    }
+
+    stack.push({ indent, node });
+  }
+
+  return roots;
+}
+
 export function applyColorClasses(comments: HNComment[], colorClasses: Map<number, string>): void {
   for (const comment of comments) {
     const colorClass = colorClasses.get(comment.id);
@@ -488,9 +549,13 @@ export async function getArticleComments(
     abortController = new AbortController();
     const { signal } = abortController;
 
-    // Fetch Algolia (full comment tree) and HN HTML page (correct ordering) in parallel
+    // Fetch Algolia (full comment tree) and HN HTML page (correct ordering) in parallel.
+    // Both are non-fatal: when Algolia is unavailable we fall back to the HN HTML page.
     const [algoliaItem, hnHtmlResult] = await Promise.all([
-      fetchAlgoliaItem(id, signal),
+      fetchAlgoliaItem(id, signal).catch((err): AlgoliaItem | null => {
+        console.warn('Algolia fetch failed, will try HN page fallback:', err);
+        return null;
+      }),
       fetchHnPageHtml(id, signal).catch((err): string => {
         console.warn('Failed to fetch HN page for comment ordering:', err);
         return '';
@@ -498,40 +563,86 @@ export async function getArticleComments(
     ]);
     perf.update(String(id), 'comments-fetch', Date.now() - t0);
 
-    // Build item from Algolia data (Algolia returns top-level fields differently)
-    const domain = algoliaItem.url ? extractDomain(algoliaItem.url) : '';
-
-    // Transform all comments from the Algolia tree
-    // Algolia's num_comments is often null, so derive count from children
-    let allComments = (algoliaItem.children || [])
-      .filter(c => c.type === 'comment')
-      .map(transformAlgoliaComment);
+    // Transform all comments from the Algolia tree (empty when Algolia is unavailable).
+    // Algolia's num_comments is often null, so derive count from children.
+    let allComments = algoliaItem
+      ? (algoliaItem.children || []).filter(c => c.type === 'comment').map(transformAlgoliaComment)
+      : [];
 
     let sortWarning: string | undefined;
 
-    if (hnHtmlResult) {
-      // Extract comment ID order and color classes from the HN HTML page
-      const pageData = extractHnPageData(hnHtmlResult, id);
-      if (pageData.orderedIds.length > 0) {
-        allComments = sortCommentsByPageOrder(allComments, pageData.orderedIds);
-        applyColorClasses(allComments, pageData.colorClasses);
+    if (allComments.length > 0) {
+      // Normal path: order + color the Algolia tree using the HN HTML page.
+      if (hnHtmlResult) {
+        const pageData = extractHnPageData(hnHtmlResult, id);
+        if (pageData.orderedIds.length > 0) {
+          allComments = sortCommentsByPageOrder(allComments, pageData.orderedIds);
+          applyColorClasses(allComments, pageData.colorClasses);
+        }
+      } else {
+        sortWarning = 'Could not fetch the HN page to determine comment ordering. Comments are shown in default order.';
       }
     } else {
-      sortWarning = 'Could not fetch the HN page to determine comment ordering. Comments are shown in default order.';
+      // Algolia gave us no comments — build the tree directly from the HN HTML page.
+      // The HN page only renders the top comments of large threads, hence the warning.
+      const htmlComments = hnHtmlResult ? extractHnComments(hnHtmlResult, id) : [];
+      if (htmlComments.length > 0) {
+        allComments = htmlComments;
+        sortWarning = 'Algolia is down — showing top comments only.';
+      } else if (!algoliaItem) {
+        // Both sources failed to yield anything — surface the error.
+        // (When Algolia succeeded with no comments, this is a genuine empty thread.)
+        throw new Error('Failed to load comments from Algolia and HN page');
+      }
     }
 
+    // Resolve story metadata. Prefer Algolia; when it's absent, fetch it from Firebase
+    // (which is up). Raw, unescaped values here — escaped once at item construction.
+    let metaTitle = '';
+    let metaPoints = 0;
+    let metaUser = '';
+    let metaTimeAgo = '';
+    let metaUrl: string | undefined;
+    let metaText: string | undefined;
+    let metaType: string | undefined;
+    let commentsCount = allComments.length;
+
+    if (algoliaItem) {
+      metaTitle = algoliaItem.title || '';
+      metaPoints = algoliaItem.points ?? 0;
+      metaUser = algoliaItem.author || '';
+      metaTimeAgo = algoliaItem.created_at_i ? timeAgo(algoliaItem.created_at_i) : '';
+      metaUrl = algoliaItem.url;
+      metaText = algoliaItem.text;
+      metaType = algoliaItem.type;
+    } else {
+      const raw = await fetchItem(id, signal).catch((): FirebaseItem | null => null);
+      if (raw) {
+        metaTitle = raw.title || '';
+        metaPoints = raw.score ?? 0;
+        metaUser = raw.by || '';
+        metaTimeAgo = raw.time ? timeAgo(raw.time) : '';
+        metaUrl = raw.url;
+        metaText = raw.text;
+        metaType = raw.type;
+        if (typeof raw.descendants === 'number') commentsCount = raw.descendants;
+      }
+    }
+
+    const domain = metaUrl ? extractDomain(metaUrl) : '';
+
     const item: HNItem = {
-      id: algoliaItem.id,
-      title: escapeHtml(algoliaItem.title || '[deleted]'),
-      points: algoliaItem.points ?? 0,
-      user: escapeHtml(algoliaItem.author || ''),
-      time_ago: algoliaItem.created_at_i ? timeAgo(algoliaItem.created_at_i) : '',
-      url: algoliaItem.url,
+      id,
+      title: escapeHtml(metaTitle || '[deleted]'),
+      points: metaPoints,
+      user: escapeHtml(metaUser),
+      time_ago: metaTimeAgo,
+      url: metaUrl,
       domain,
-      self: !algoliaItem.url,
-      comments_count: allComments.length,
-      text: algoliaItem.text,
-      type: algoliaItem.type,
+      self: !metaUrl,
+      comments_count: commentsCount,
+      text: metaText,
+      type: metaType,
       kids: [],
       sortWarning
     };

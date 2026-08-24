@@ -20,7 +20,7 @@ vi.mock('@capacitor/core', () => ({
 }));
 
 // Import after mocks are set up
-import { data, extractHnPageData, sortCommentsByPageOrder, applyColorClasses, readLocalData } from '../data';
+import { data, extractHnPageData, extractHnComments, sortCommentsByPageOrder, applyColorClasses, readLocalData } from '../data';
 import { Capacitor, CapacitorHttp } from '@capacitor/core';
 import { store } from '../../utils/storage';
 
@@ -872,6 +872,101 @@ describe('data module', () => {
     });
   });
 
+  describe('extractHnComments', () => {
+    const storyId = 500;
+
+    // Mirrors the real HN comment-row structure:
+    // tr.comtr > td > table > tr > td.ind[indent] + td.default > (comhead)(commtext)
+    function commentRow(opts: {
+      id: number;
+      indent: number;
+      user?: string;
+      age?: string;
+      unix?: number;
+      colorClass?: string;
+      text?: string;
+      deleted?: boolean;
+    }): string {
+      const { id, indent, user = 'someuser', age = '2 hours ago', unix = 1787505693, colorClass = 'c00', text = 'body', deleted = false } = opts;
+      const head = deleted
+        ? `<span class="comhead"><span class="cdd">[flagged]</span></span>`
+        : `<span class="comhead"><a href="user?id=${user}" class="hnuser">${user}</a> <span class="age" title="2026-08-23T17:21:33 ${unix}"><a href="item?id=${id}">${age}</a></span></span>`;
+      const body = deleted
+        ? `<span class="comment"><span class="cdd">[flagged]</span></span>`
+        : `<div class="comment"><div class="commtext ${colorClass}">${text}</div></div>`;
+      return `<tr class="athing comtr" id="${id}">
+        <td><table><tr>
+          <td class="ind" indent="${indent}"><img src="s.gif" width="${indent * 40}"></td>
+          <td class="votelinks"></td>
+          <td class="default"><div>${head}</div><br>${body}</td>
+        </tr></table></td>
+      </tr>`;
+    }
+
+    it('builds a flat list of top-level comments', () => {
+      const html = `<table class="comment-tree">
+        ${commentRow({ id: 100, indent: 0, user: 'alice', text: 'first' })}
+        ${commentRow({ id: 101, indent: 0, user: 'bob', text: 'second' })}
+      </table>`;
+      const result = extractHnComments(html, storyId);
+      expect(result.map(c => c.id)).toEqual([100, 101]);
+      expect(result[0].user).toBe('alice');
+      expect(result[0].content).toBe('first');
+      expect(result[0].comments).toEqual([]);
+    });
+
+    it('nests replies under their parent using the indent attribute', () => {
+      const html = `<table class="comment-tree">
+        ${commentRow({ id: 100, indent: 0, user: 'alice' })}
+        ${commentRow({ id: 101, indent: 1, user: 'bob' })}
+        ${commentRow({ id: 102, indent: 2, user: 'carol' })}
+        ${commentRow({ id: 103, indent: 0, user: 'dave' })}
+      </table>`;
+      const result = extractHnComments(html, storyId);
+      expect(result.map(c => c.id)).toEqual([100, 103]);
+      expect(result[0].comments!.map(c => c.id)).toEqual([101]);
+      expect(result[0].comments![0].comments!.map(c => c.id)).toEqual([102]);
+      expect(result[1].comments).toEqual([]);
+    });
+
+    it('extracts author, time_ago, content and color class', () => {
+      const html = `<table class="comment-tree">
+        ${commentRow({ id: 100, indent: 0, user: 'alice', age: '5 minutes ago', colorClass: 'c88', text: '<p>hi there</p>' })}
+      </table>`;
+      const [c] = extractHnComments(html, storyId);
+      expect(c.user).toBe('alice');
+      expect(c.time_ago).toBe('5 minutes ago');
+      expect(c.content).toContain('hi there');
+      expect(c.colorClass).toBe('c88');
+    });
+
+    it('omits the default c00 color class', () => {
+      const html = `<table class="comment-tree">
+        ${commentRow({ id: 100, indent: 0, colorClass: 'c00' })}
+      </table>`;
+      const [c] = extractHnComments(html, storyId);
+      expect(c.colorClass).toBeUndefined();
+    });
+
+    it('preserves nesting when a comment is deleted/flagged', () => {
+      const html = `<table class="comment-tree">
+        ${commentRow({ id: 100, indent: 0, deleted: true })}
+        ${commentRow({ id: 101, indent: 1, user: 'bob', text: 'reply to flagged' })}
+      </table>`;
+      const result = extractHnComments(html, storyId);
+      expect(result.map(c => c.id)).toEqual([100]);
+      expect(result[0].user).toBe('[deleted]');
+      expect(result[0].comments!.map(c => c.id)).toEqual([101]);
+      expect(result[0].comments![0].content).toBe('reply to flagged');
+    });
+
+    it('ignores the story row and returns empty for no comments', () => {
+      const html = `<table><tr class="athing" id="500"></tr></table>`;
+      expect(extractHnComments(html, storyId)).toEqual([]);
+      expect(extractHnComments('', storyId)).toEqual([]);
+    });
+  });
+
   describe('sortCommentsByPageOrder', () => {
     function makeComment(id: number, children?: HNComment[]): HNComment {
       return { id, user: 'u', time_ago: '1h', content: '', comments: children };
@@ -1168,6 +1263,94 @@ describe('data module', () => {
       expect(replies).toHaveLength(2);
       expect(replies[0].id).toBe(7002);
       expect(replies[1].id).toBe(7003);
+    });
+  });
+
+  describe('getArticleComments Algolia fallback', () => {
+    const fallbackHtml = `<table class="comment-tree">
+      <tr class="athing comtr" id="9101"><td><table><tr>
+        <td class="ind" indent="0"></td>
+        <td class="default"><div><span class="comhead"><a class="hnuser">alice</a> <span class="age" title="t 1787505693"><a>2 hours ago</a></span></span></div><div class="comment"><div class="commtext c00">Fallback body</div></div></td>
+      </tr></table></td></tr>
+      <tr class="athing comtr" id="9102"><td><table><tr>
+        <td class="ind" indent="1"></td>
+        <td class="default"><div><span class="comhead"><a class="hnuser">bob</a> <span class="age" title="t 1787505700"><a>1 hour ago</a></span></span></div><div class="comment"><div class="commtext c88">A reply</div></td>
+      </tr></table></td></tr>
+    </table>`;
+
+    it('falls back to HTML comments when Algolia rejects, with a warning', async () => {
+      const firebaseMeta: FirebaseItem = {
+        id: 8801, by: 'op', title: 'Outage Story', url: 'https://ex.com/a',
+        score: 12, time: Math.floor(Date.now() / 1000) - 3600, type: 'story', descendants: 40
+      };
+
+      mockFetch.mockReset();
+      mockFetch
+        .mockImplementationOnce(() => Promise.reject(new Error('404 Not Found'))) // Algolia
+        .mockImplementationOnce(() => mockFetchResponse(fallbackHtml))            // HN HTML
+        .mockImplementationOnce(() => mockFetchResponse(firebaseMeta));           // Firebase meta
+
+      const result = await new Promise<Record<string, unknown>>((resolve) => {
+        data.getArticleComments(8801, (item) => resolve(item as unknown as Record<string, unknown>), true);
+      });
+
+      const comments = result.comments as Record<string, unknown>[];
+      expect(comments).toHaveLength(1);
+      expect(comments[0].id).toBe(9101);
+      expect(comments[0].user).toBe('alice');
+      expect(comments[0].content).toContain('Fallback body');
+      const replies = comments[0].comments as Record<string, unknown>[];
+      expect(replies.map(r => r.id)).toEqual([9102]);
+      expect(replies[0].colorClass).toBe('c88');
+
+      // Warning surfaced via the existing sortWarning slot
+      expect(result.sortWarning).toContain('Algolia');
+
+      // Story meta filled in from Firebase
+      expect(result.title).toBe('Outage Story');
+      expect(result.comments_count).toBe(40);
+    });
+
+    it('falls back when Algolia returns an empty comment tree but HTML has comments', async () => {
+      const algoliaEmpty = {
+        id: 8802, type: 'story', author: 'op2', title: 'Empty Algolia',
+        points: 7, created_at_i: Math.floor(Date.now() / 1000), children: []
+      };
+
+      mockFetch.mockReset();
+      mockFetch
+        .mockImplementationOnce(() => mockFetchResponse(algoliaEmpty)) // Algolia (empty children)
+        .mockImplementationOnce(() => mockFetchResponse(fallbackHtml)); // HN HTML has comments
+
+      const result = await new Promise<Record<string, unknown>>((resolve) => {
+        data.getArticleComments(8802, (item) => resolve(item as unknown as Record<string, unknown>), true);
+      });
+
+      const comments = result.comments as Record<string, unknown>[];
+      expect(comments.map(c => c.id)).toEqual([9101]);
+      expect(result.sortWarning).toContain('Algolia');
+      // Meta comes from the (successful) Algolia response — no extra Firebase fetch
+      expect(result.title).toBe('Empty Algolia');
+    });
+
+    it('does not warn when Algolia genuinely has no comments and neither does the page', async () => {
+      const algoliaEmpty = {
+        id: 8803, type: 'story', author: 'op3', title: 'No Comments',
+        points: 1, created_at_i: Math.floor(Date.now() / 1000), children: []
+      };
+      const emptyHtml = `<table><tr class="athing" id="8803"></tr></table>`;
+
+      mockFetch.mockReset();
+      mockFetch
+        .mockImplementationOnce(() => mockFetchResponse(algoliaEmpty))
+        .mockImplementationOnce(() => mockFetchResponse(emptyHtml));
+
+      const result = await new Promise<Record<string, unknown>>((resolve) => {
+        data.getArticleComments(8803, (item) => resolve(item as unknown as Record<string, unknown>), true);
+      });
+
+      expect(result.comments).toEqual([]);
+      expect(result.sortWarning).toBeUndefined();
     });
   });
 

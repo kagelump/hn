@@ -1,6 +1,6 @@
 {
   "name": "hn-reader",
-  "version": "0.2.0",
+  "version": "1.0.1",
   "description": "A multiplatform JavaScript webapp for reading Hacker News",
   "type": "module",
   "scripts": {

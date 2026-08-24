@@ -8,10 +8,12 @@ const config: CapacitorConfig = {
     androidScheme: 'https'
   },
   plugins: {
-    // OTA web-bundle updates. autoUpdate: check Capgo on launch/resume, download
-    // in the background, and activate the new bundle on the next cold start.
+    // OTA web-bundle updates. 'atBackground': check Capgo on launch/resume,
+    // download in the background, and activate the new bundle on the next cold
+    // start. The bundle version is reported from the native app version, so OTA
+    // bundles must be versioned above it (see docs/ota-updates.md).
     CapacitorUpdater: {
-      autoUpdate: true
+      autoUpdate: 'atBackground'
     }
   }
 };

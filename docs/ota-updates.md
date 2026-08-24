@@ -44,10 +44,32 @@ npx @capgo/cli login <YOUR_CAPGO_API_KEY>
 # 2. Register this app in Capgo
 npx @capgo/cli app add com.raycatdev.hn
 
-# 3. Create the production channel and make it the default auto-update channel
+# 3. Create the production channel and make it the default auto-update channel.
+#    iOS-only app → enable iOS targeting explicitly (channels default to iOS OFF).
+#    --state default makes it the channel devices auto-assign to (exactly one
+#    channel must be default). No --downgrade needed: OTA bundles are versioned
+#    above the native app (see "Versioning" below).
 npx @capgo/cli channel add production com.raycatdev.hn
-npx @capgo/cli channel set production com.raycatdev.hn --default --downgrade --upgrade
+npx @capgo/cli channel set production com.raycatdev.hn --state default --ios
 ```
+
+## Versioning
+
+Keep **`package.json` version and the iOS `MARKETING_VERSION` in lockstep**, and make
+every OTA bundle strictly newer than the native app it patches. Capgo reports the
+device's version from the native build and refuses to serve a bundle whose semver is
+equal to or below it, so:
+
+- **Native release:** bump `MARKETING_VERSION` (Xcode) and `package.json` `version` to
+  the same value (e.g. `1.0.2`), then submit through App Review.
+- **OTA hotfix between native releases:** bump only `package.json` **patch** above the
+  shipped native version (native `1.0.2` → OTA `1.0.3`, `1.0.4`, …) and run
+  `npm run ota:ios`. `@capgo/cli bundle upload` tags the bundle from `package.json`.
+- **Next native release:** jump `MARKETING_VERSION` + `package.json` above the highest
+  OTA bundle you shipped, so the store build is newer than every OTA bundle.
+
+This keeps version comparison and rollback protection working with no `--downgrade`
+flag and no `CapacitorUpdater.version` override.
 
 ---
 

@@ -28,6 +28,7 @@ import { initPerformancePage } from './modules/performance-page';
 import { getBlockedUsers } from './modules/moderation';
 import * as pullToRefresh from './modules/pullToRefresh';
 import { setupSwipeGesture } from './modules/swipeBack';
+import { initOtaUpdates } from './modules/otaUpdates';
 
 // Add HTML class to show app
 document.querySelector('html')?.classList.add('show-app');
@@ -361,6 +362,10 @@ function init(): void {
   // Register every route subscriber before processing the initial URL so native
   // deep links cannot publish into an empty event bus.
   initRouter();
+
+  // Signal a successful boot to Capgo so a freshly-downloaded OTA bundle isn't
+  // rolled back. No-op on web/dev. Runs last: reaching here means the app booted.
+  initOtaUpdates();
 
   // iOS convention: tapping the status bar scrolls the view to the top
   // The native AppDelegate swizzles UIStatusBarManager and calls scrollTo via evaluateJavaScript

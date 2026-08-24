@@ -13,7 +13,8 @@
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
     "test:e2e": "playwright test",
-    "test:e2e:ui": "playwright test --ui"
+    "test:e2e:ui": "playwright test --ui",
+    "ota:ios": "npm run build && npx @capgo/cli bundle upload --channel production"
   },
   "keywords": [
     "hackernews",
@@ -44,6 +45,7 @@
     "@capacitor/ios": "^7.6.6",
     "@capacitor/keyboard": "^7.0.6",
     "@capacitor/status-bar": "^7.0.6",
+    "@capgo/capacitor-updater": "^7.50.2",
     "@mozilla/readability": "^0.6.0"
   }
 }

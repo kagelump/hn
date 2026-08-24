@@ -15,6 +15,7 @@ npm run test:e2e       # playwright against localhost:3000
 
 # iOS build
 npm run build && npx cap sync ios
+npm run check:spm     # verify SwiftPM lockfile is in sync (run after cap sync)
 # Then open ios/App/App.xcodeproj in Xcode and ⌘R
 ```
 
@@ -86,3 +87,4 @@ Settings are restored on startup in `main.ts` before any page renders.
 - **Xcode project edits**: When adding files to `ios/App/App/Plugins/`, the `PBXFileReference` path must include the `Plugins/` prefix relative to the group.
 - **CAPBridgeViewController**: `webView` is a public stored property but not KVC-compliant — can't use `value(forKey:)`. Access directly as `vc.webView`.
 - **Double-tap zoom**: Disabled via `touch-action: manipulation` on `html` in `common.css`. This prevents double-tap-to-zoom while preserving pinch-to-zoom.
+- **SwiftPM lockfile must be committed after `cap sync`**: This app uses Swift Package Manager (`ios/App/CapApp-SPM/Package.swift`), not CocoaPods. Adding or upgrading a Capacitor/Capgo plugin can pull in new transitive SPM dependencies (e.g. `@capgo/capacitor-updater` pulls in Alamofire, BigInt, ZIPFoundation, Version). `cap sync` updates `Package.swift`, but the pinned `Package.resolved` (`ios/App/App.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved`) is only regenerated on a local build/resolve — it is easy to leave uncommitted. **Xcode Cloud disables automatic package resolution**, so a stale `Package.resolved` fails the build ("an out-of-date resolved file was detected … dependencies were added"). After any plugin change, run `npm run check:spm` (regenerates via `xcodebuild -resolvePackageDependencies` and fails on drift) and commit `Package.resolved` alongside `Package.swift`.

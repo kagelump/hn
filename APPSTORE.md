@@ -101,9 +101,12 @@ No account or demo credentials are required.
 
 ## Pre-upload checklist
 
+- [ ] Update `ios/app-store-connect-baseline.json` to the last version/build seen
+      in App Store Connect, then run `npm run check:ios-version`
 - [ ] `npm run build && npx cap sync ios`
 - [ ] In Xcode: scheme target = **Any iOS Device (arm64)**
-- [ ] Bump `CURRENT_PROJECT_VERSION` if re-uploading the same `MARKETING_VERSION`
+- [ ] Confirm the candidate `MARKETING_VERSION` is above the last approved version
+      and `CURRENT_PROJECT_VERSION` is above the last uploaded build
 - [ ] Product ▸ Archive ▸ Distribute App ▸ App Store Connect
 - [ ] iPhone screenshots: 6.9" (required) and 6.5"/6.7"; no iPad needed (iPhone-only)
 - [ ] Confirm GitHub Pages is enabled (Settings ▸ Pages ▸ Source: GitHub Actions)

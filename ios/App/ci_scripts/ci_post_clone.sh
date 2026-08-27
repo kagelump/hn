@@ -22,5 +22,7 @@ echo "node $(node -v) / npm $(npm -v)"
 # packages that Package.swift points at), build the web bundle, and copy it
 # into the native iOS project (ios/App/App/public).
 npm ci
+npm run lint
+npm run check:ios-version
 npm run build
 npx cap sync ios

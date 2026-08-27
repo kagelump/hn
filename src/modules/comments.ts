@@ -82,11 +82,7 @@ export function buildCommentsShareText(title: string, comments: string[], articl
   return `Summarize the following discussion:\n\n${title}\n${hnLink}\n\n${body}`;
 }
 
-function getHeaderHtml(sortWarning?: string): string {
-  const warningBtn = sortWarning
-    ? `<li><button class="sort-warning-btn" type="button" aria-label="Comment ordering warning" title="Comment ordering issue">!</button></li>`
-    : '';
-
+function getHeaderHtml(): string {
   return `
     <div class="header-container">
       <header class="header">
@@ -96,7 +92,6 @@ function getHeaderHtml(sortWarning?: string): string {
         <h1>Comments</h1>
         <ul class="r-menu list-inline menu">
           <li><button class="share-btn" type="button" aria-label="Summarize with AI"><!-- Lucide "bot-message-square" icon, ISC License --><svg class="header-svg-icon" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 6V2H8"/><path d="M15 11v2"/><path d="M2 12h2"/><path d="M20 12h2"/><path d="M20 16a2 2 0 0 1-2 2H8.828a2 2 0 0 0-1.414.586l-2.202 2.202A.71.71 0 0 1 4 20.286V8a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2z"/><path d="M9 11v2"/></svg></button></li>
-          ${warningBtn}
         </ul>
       </header>
     </div>
@@ -122,6 +117,28 @@ function getArticleMetaHtml(article: HNItem): string {
   `;
 }
 
+function prepareCommentsLoadingPage(page: HTMLElement): void {
+  const body = page.querySelector('.pagebd-container .bd') as HTMLElement | null;
+  if (!body) {
+    page.innerHTML = `
+      ${getHeaderHtml()}
+      <section class="pagebd-container">
+        <div class="bd"><div class="show-loading"><div class="circle"></div></div></div>
+      </section>
+    `;
+    return;
+  }
+
+  // Keep the already-composited header and scroll container mounted. Replacing
+  // the entire off-screen page immediately before its slide-in can give WKWebView
+  // a frame containing only the page's solid background.
+  body.innerHTML = '<div class="show-loading"><div class="circle"></div></div>';
+  page.querySelector('.next-thread-btn')?.remove();
+  page.querySelector('.sort-warning-modal')?.remove();
+
+  page.querySelector('.sort-warning-btn')?.closest('li')?.remove();
+}
+
 function commentsRouteIsCurrent(articleId: number, revision: number): boolean {
   return isRouteRevision(revision) && isCurrentRoute('comments', articleId);
 }
@@ -140,25 +157,27 @@ function renderCommentsIntoPage(article: HNItem, articleId: number, revision: nu
 
   const metaHtml = getArticleMetaHtml(article);
 
-  const warningModal = article.sortWarning
-    ? `<div class="sort-warning-modal" style="display:none;">
+  const body = page.querySelector('.pagebd-container .bd') as HTMLElement | null;
+  if (!body) return;
+  body.innerHTML = `
+    ${metaHtml}
+    ${commentsHtml}
+  `;
+
+  page.querySelector('.sort-warning-btn')?.closest('li')?.remove();
+  page.querySelector('.sort-warning-modal')?.remove();
+  if (article.sortWarning) {
+    page.querySelector('.header .r-menu')?.insertAdjacentHTML(
+      'beforeend',
+      '<li><button class="sort-warning-btn" type="button" aria-label="Comment ordering warning" title="Comment ordering issue">!</button></li>'
+    );
+    page.insertAdjacentHTML('beforeend', `<div class="sort-warning-modal" style="display:none;">
         <div class="sort-warning-modal-content">
           <p>${escapeHtml(article.sortWarning)}</p>
           <button class="sort-warning-close" type="button">OK</button>
         </div>
-       </div>`
-    : '';
-
-  page.innerHTML = `
-    ${getHeaderHtml(article.sortWarning)}
-    <section class="pagebd-container">
-      <div class="bd">
-        ${metaHtml}
-        ${commentsHtml}
-      </div>
-    </section>
-    ${warningModal}
-  `;
+       </div>`);
+  }
 
   // Add next-thread navigation button
   const existingBtn = page.querySelector('.next-thread-btn');
@@ -187,6 +206,10 @@ function renderCommentsIntoPage(article: HNItem, articleId: number, revision: nu
 export function initCommentsPage(): void {
   const page = document.querySelector('.page-article-comments') as HTMLElement;
   if (page) {
+    // Prime the off-screen page at startup so its chrome is ready before the
+    // first animated navigation on iOS.
+    prepareCommentsLoadingPage(page);
+
     page.addEventListener('click', (event: MouseEvent) => {
       const target = event.target as HTMLElement;
 
@@ -293,12 +316,7 @@ export function initCommentsPage(): void {
     if (page) {
       page.dataset.articleId = String(articleId);
       page.dataset.routeRevision = String(revision);
-      page.innerHTML = `
-        ${getHeaderHtml()}
-        <section class="pagebd-container">
-          <div class="bd"><div class="show-loading"><div class="circle"></div></div></div>
-        </section>
-      `;
+      prepareCommentsLoadingPage(page);
     }
     showPage('page-article-comments', 'Comments');
 
@@ -306,15 +324,13 @@ export function initCommentsPage(): void {
     if (cached && commentsRouteIsCurrent(articleId, revision)) {
       // Phase 1: render header + article meta instantly from cache
       if (page) {
-        page.innerHTML = `
-          ${getHeaderHtml(cached.sortWarning)}
-          <section class="pagebd-container">
-            <div class="bd">
-              ${getArticleMetaHtml(cached)}
-              <div class="show-loading"><div class="circle"></div></div>
-            </div>
-          </section>
-        `;
+        const body = page.querySelector('.pagebd-container .bd');
+        if (body) {
+          body.innerHTML = `
+            ${getArticleMetaHtml(cached)}
+            <div class="show-loading"><div class="circle"></div></div>
+          `;
+        }
       }
       // Phase 2: fetch full comment tree and fill in
       void data.getArticleComments(articleId, (article) => {
@@ -349,7 +365,7 @@ export function initCommentsPage(): void {
         setTimeout(() => {
           if (!page.classList.contains('show-page') &&
               (page as HTMLElement).dataset.routeRevision === hiddenRevision) {
-            page.innerHTML = '';
+            prepareCommentsLoadingPage(page as HTMLElement);
           }
         }, 450);
       }

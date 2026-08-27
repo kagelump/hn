@@ -90,6 +90,29 @@ describe('route-scoped page rendering', () => {
     initCommentsPage();
   });
 
+  it('primes the comments chrome before the first navigation', () => {
+    const page = document.querySelector('.page-article-comments');
+
+    expect(page?.querySelector('.header-container')).not.toBeNull();
+    expect(page?.querySelector('.pagebd-container .show-loading')).not.toBeNull();
+  });
+
+  it('keeps the precomposited comments chrome mounted while content loads and renders', () => {
+    routeState.action = 'comments';
+    const page = document.querySelector('.page-article-comments') as HTMLElement;
+    const header = page.querySelector('.header-container');
+    const scrollContainer = page.querySelector('.pagebd-container');
+
+    PubSub.publish('show-comments', 1);
+    expect(page.querySelector('.header-container')).toBe(header);
+    expect(page.querySelector('.pagebd-container')).toBe(scrollContainer);
+
+    dataMocks.commentCallbacks.get(1)?.(article(1, 'Rendered discussion'));
+    expect(page.querySelector('.header-container')).toBe(header);
+    expect(page.querySelector('.pagebd-container')).toBe(scrollContainer);
+    expect(page.textContent).toContain('Rendered discussion');
+  });
+
   it('does not let an older article response overwrite the current article', () => {
     PubSub.publish('show-article', 1);
     routeState.id = 2;
@@ -151,6 +174,23 @@ describe('route-scoped page rendering', () => {
     vi.advanceTimersByTime(450);
 
     expect(page.textContent).toContain('Reopened discussion');
+    vi.useRealTimers();
+  });
+
+  it('keeps comments chrome mounted after the page is hidden', () => {
+    vi.useFakeTimers();
+    routeState.action = 'comments';
+    PubSub.publish('show-comments', 1);
+    dataMocks.commentCallbacks.get(1)?.(article(1, 'First discussion'));
+    const page = document.querySelector('.page-article-comments') as HTMLElement;
+
+    page.classList.remove('show-page');
+    PubSub.publish('onPageHidden', page.className);
+    vi.advanceTimersByTime(450);
+
+    expect(page.querySelector('.header-container')).not.toBeNull();
+    expect(page.querySelector('.pagebd-container .show-loading')).not.toBeNull();
+    expect(page.textContent).not.toContain('First discussion');
     vi.useRealTimers();
   });
 

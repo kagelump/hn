@@ -49,7 +49,7 @@ describe('pullToRefresh', () => {
       bubbles: true,
     }) as unknown as TouchEvent;
     Object.defineProperty(event, 'touches', {
-      value: type === 'touchend' ? [] : [touch],
+      value: type === 'touchend' || type === 'touchcancel' ? [] : [touch],
       enumerable: true,
     });
     Object.defineProperty(event, 'changedTouches', {
@@ -109,6 +109,45 @@ describe('pullToRefresh', () => {
 
     expect(indicator?.classList.contains('pull-to-refresh-loading')).toBe(false);
     expect((indicator as HTMLElement | null)?.style.transform).toBe('translate3d(0, 0px, 0)');
+  });
+
+  it('does not reuse a completed pull distance for a later tap at the top', () => {
+    const onRefresh = vi.fn();
+    cleanup = pullToRefresh.init({ container, threshold: 80, onRefresh });
+
+    dispatchTouch('touchstart', 100);
+    dispatchTouch('touchmove', 300);
+    dispatchTouch('touchend', 300);
+    PubSub.publish('reload-home-complete');
+
+    dispatchTouch('touchstart', 100);
+    dispatchTouch('touchend', 100);
+
+    expect(onRefresh).toHaveBeenCalledTimes(1);
+  });
+
+  it('cancels an armed pull when navigation starts', () => {
+    const onRefresh = vi.fn();
+    cleanup = pullToRefresh.init({ container, threshold: 80, onRefresh });
+
+    dispatchTouch('touchstart', 100);
+    dispatchTouch('touchmove', 300);
+    PubSub.publish('route-changing');
+    dispatchTouch('touchend', 300);
+
+    expect(onRefresh).not.toHaveBeenCalled();
+  });
+
+  it('resets an armed pull on touch cancellation', () => {
+    const onRefresh = vi.fn();
+    cleanup = pullToRefresh.init({ container, threshold: 80, onRefresh });
+
+    dispatchTouch('touchstart', 100);
+    dispatchTouch('touchmove', 300);
+    dispatchTouch('touchcancel', 300);
+    dispatchTouch('touchend', 300);
+
+    expect(onRefresh).not.toHaveBeenCalled();
   });
 
   it('cancels pulling on horizontal-dominant gestures and does not refresh', () => {

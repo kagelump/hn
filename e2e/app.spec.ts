@@ -196,7 +196,7 @@ test.describe('HN Reader', () => {
     await expect(page.locator('.page-home .list li')).toHaveCount(30, { timeout: 15000 });
 
     // Scroll the actual scroll container to the bottom
-    await page.locator('.pagebd-container').evaluate(el => el.scrollTop = el.scrollHeight);
+    await page.locator('.page-home .pagebd-container').evaluate(el => el.scrollTop = el.scrollHeight);
 
     // Wait for more items to load
     await expect(page.locator('.page-home .list li')).toHaveCount(60, { timeout: 15000 });
@@ -207,7 +207,7 @@ test.describe('HN Reader', () => {
     await expect(page.locator('.page-home .list li')).toHaveCount(30, { timeout: 15000 });
 
     // Simulate pull-to-refresh via touch
-    const container = page.locator('.pagebd-container');
+    const container = page.locator('.page-home .pagebd-container');
     const box = await container.boundingBox();
     if (!box) throw new Error('Container not found');
 

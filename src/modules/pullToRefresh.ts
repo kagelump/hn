@@ -60,6 +60,7 @@ export function init(options: PullToRefreshOptions): () => void {
   function reset(): void {
     pulling = false;
     refreshing = false;
+    currentY = 0;
     setPullingTransition(true);
     setTransform(0);
     setState('pull');
@@ -70,6 +71,7 @@ export function init(options: PullToRefreshOptions): () => void {
     if (container.scrollTop > 0) return;
     startX = e.touches[0].clientX;
     startY = e.touches[0].clientY;
+    currentY = 0;
     pulling = true;
   }
 
@@ -82,11 +84,16 @@ export function init(options: PullToRefreshOptions): () => void {
 
     // Ignore horizontal-dominant gestures so scrolling and swipes aren't hijacked.
     if (Math.abs(dx) > Math.abs(dy)) {
-      pulling = false;
+      reset();
       return;
     }
 
-    if (dy < 0) return;
+    if (dy <= 0) {
+      currentY = 0;
+      setTransform(0);
+      setState('pull');
+      return;
+    }
 
     // Disable transitions during active pull so the content follows the finger.
     setPullingTransition(false);
@@ -124,21 +131,28 @@ export function init(options: PullToRefreshOptions): () => void {
   function onError(): void {
     if (refreshing) reset();
   }
+  function onRouteChanging(): void {
+    if (!refreshing) reset();
+  }
   PubSub.subscribe('reload-home-complete', onComplete);
   PubSub.subscribe('reload-home-error', onError);
+  PubSub.subscribe('route-changing', onRouteChanging);
 
   container.addEventListener('touchstart', onTouchStart, { passive: true });
   container.addEventListener('touchmove', onTouchMove, { passive: false });
   container.addEventListener('touchend', onTouchEnd, { passive: true });
+  container.addEventListener('touchcancel', reset, { passive: true });
   container.addEventListener('scroll', onScroll, { passive: true });
 
   return () => {
     container.removeEventListener('touchstart', onTouchStart);
     container.removeEventListener('touchmove', onTouchMove);
     container.removeEventListener('touchend', onTouchEnd);
+    container.removeEventListener('touchcancel', reset);
     container.removeEventListener('scroll', onScroll);
     PubSub.unsubscribe('reload-home-complete', onComplete);
     PubSub.unsubscribe('reload-home-error', onError);
+    PubSub.unsubscribe('route-changing', onRouteChanging);
     indicator.remove();
   };
 }

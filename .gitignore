@@ -39,3 +39,4 @@ android/app/hnreader-release.keystore
 android/app/keystore.properties
 *.aab
 *.apk
+*.zip

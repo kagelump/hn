@@ -363,8 +363,8 @@ function init(): void {
   // deep links cannot publish into an empty event bus.
   initRouter();
 
-  // Signal a successful boot to Capgo so a freshly-downloaded OTA bundle isn't
-  // rolled back. No-op on web/dev. Runs last: reaching here means the app booted.
+  // Signal a successful boot to the native updater so a freshly-downloaded OTA
+  // bundle isn't rolled back. No-op on web/dev. Runs last after a healthy boot.
   initOtaUpdates();
 
   // iOS convention: tapping the status bar scrolls the view to the top

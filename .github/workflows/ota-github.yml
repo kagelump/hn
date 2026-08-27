@@ -1,0 +1,133 @@
+name: Publish GitHub-hosted OTA update
+
+on:
+  workflow_dispatch:
+    inputs:
+      minimum_native_version:
+        description: Oldest native app version compatible with this web bundle
+        required: true
+        default: '1.0.1'
+
+permissions:
+  contents: write
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}ota/latest.json
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout master
+        uses: actions/checkout@v4
+        with:
+          ref: master
+          fetch-depth: 0
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Verify
+        run: |
+          npm run lint
+          npm run type-check
+          npm test
+
+      - name: Build web bundle
+        run: npm run build
+
+      - name: Resolve release metadata
+        id: release
+        env:
+          MINIMUM_NATIVE_VERSION: ${{ inputs.minimum_native_version }}
+        run: |
+          VERSION=$(node -p "require('./package.json').version")
+          TAG="ota-${VERSION}"
+          ASSET="hn-reader-${VERSION}.zip"
+          URL="https://github.com/${GITHUB_REPOSITORY}/releases/download/${TAG}/${ASSET}"
+          echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
+          echo "tag=${TAG}" >> "$GITHUB_OUTPUT"
+          echo "asset=${ASSET}" >> "$GITHUB_OUTPUT"
+          echo "url=${URL}" >> "$GITHUB_OUTPUT"
+          echo "minimum_native_version=${MINIMUM_NATIVE_VERSION}" >> "$GITHUB_OUTPUT"
+
+      - name: Refuse an existing release version
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ steps.release.outputs.tag }}
+        run: |
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            echo "Release $TAG already exists; bump package.json before publishing." >&2
+            exit 1
+          fi
+
+      - name: Package and hash bundle
+        id: bundle
+        env:
+          ASSET: ${{ steps.release.outputs.asset }}
+        run: |
+          cd dist
+          zip -qr "../${ASSET}" . -x '*.map'
+          cd ..
+          CHECKSUM=$(sha256sum "$ASSET" | cut -d ' ' -f 1)
+          echo "checksum=${CHECKSUM}" >> "$GITHUB_OUTPUT"
+
+      - name: Create GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ steps.release.outputs.tag }}
+          VERSION: ${{ steps.release.outputs.version }}
+          ASSET: ${{ steps.release.outputs.asset }}
+        run: |
+          gh release create "$TAG" "$ASSET#HN Reader OTA ${VERSION}" \
+            --target "$GITHUB_SHA" \
+            --title "HN Reader OTA ${VERSION}" \
+            --notes "Web-only OTA bundle ${VERSION}. Native changes are not included."
+
+      - name: Generate public manifest
+        env:
+          VERSION: ${{ steps.release.outputs.version }}
+          MINIMUM_NATIVE_VERSION: ${{ steps.release.outputs.minimum_native_version }}
+          URL: ${{ steps.release.outputs.url }}
+          CHECKSUM: ${{ steps.bundle.outputs.checksum }}
+        run: |
+          node scripts/create-ota-manifest.mjs \
+            docs/ota/latest.json \
+            "$VERSION" \
+            "$MINIMUM_NATIVE_VERSION" \
+            "$URL" \
+            "$CHECKSUM"
+
+      - name: Commit manifest to master
+        env:
+          VERSION: ${{ steps.release.outputs.version }}
+        run: |
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add docs/ota/latest.json
+          git commit -m "Publish OTA manifest ${VERSION} [skip ci]"
+          git push origin HEAD:master
+
+      - name: Configure Pages
+        uses: actions/configure-pages@v5
+
+      - name: Upload Pages artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: docs
+
+      - name: Deploy manifest to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4

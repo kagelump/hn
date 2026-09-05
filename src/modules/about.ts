@@ -1,7 +1,7 @@
 // About page module
 import { showPage } from './router';
 import { PubSub } from '../utils/pubsub';
-import { config } from '../config';
+import { renderVersionInfo } from './versionInfo';
 
 function renderAboutPage(): void {
   const page = document.querySelector('.page-about') as HTMLElement | null;
@@ -23,7 +23,7 @@ function renderAboutPage(): void {
           <h2>HN Reader</h2>
           <p>A fast, lightweight Hacker News reader web app.</p>
           <p>Forked from <a href="https://github.com/premii/hn" target="_blank" rel="noopener noreferrer">github.com/premii/hn</a>.</p>
-          <p>Version ${config.v.app}</p>
+          <p class="version-info"></p>
           <h3>Data Sources</h3>
           <p>Story data via the official <a href="https://github.com/HackerNews/API" target="_blank" rel="noopener noreferrer">Hacker News Firebase API</a>.</p>
           <p>Comment trees via the <a href="https://hn.algolia.com/api" target="_blank" rel="noopener noreferrer">HN Search API</a> by Algolia.</p>
@@ -37,6 +37,8 @@ function renderAboutPage(): void {
       </div>
     </section>
   `;
+  const versionInfo = page.querySelector<HTMLElement>('.version-info');
+  if (versionInfo) void renderVersionInfo(versionInfo);
 }
 
 export function initAboutPage(): void {

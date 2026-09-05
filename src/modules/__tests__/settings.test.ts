@@ -3,8 +3,17 @@ import { describe, it, expect, vi, beforeEach, afterEach, type Mock } from 'vite
 vi.mock('@capacitor/core', () => ({
   Capacitor: { isNativePlatform: vi.fn(() => false) }
 }));
+vi.mock('@capacitor/app', () => ({
+  App: { getInfo: vi.fn() }
+}));
+vi.mock('@capgo/capacitor-updater', () => ({
+  CapacitorUpdater: { current: vi.fn() }
+}));
 
 import { Capacitor } from '@capacitor/core';
+import { App } from '@capacitor/app';
+import { CapacitorUpdater } from '@capgo/capacitor-updater';
+import { version } from '../../../package.json';
 import {
   applyTheme,
   applyFontFamily,
@@ -131,6 +140,13 @@ describe('renderSettingsPage', () => {
   beforeEach(() => {
     resetHtml();
     isNativePlatform.mockReturnValue(false);
+    vi.mocked(App.getInfo).mockReset().mockResolvedValue({
+      name: 'HN Reader', id: 'com.raycatdev.hn', version: '1.0.1', build: '12'
+    });
+    vi.mocked(CapacitorUpdater.current).mockReset().mockResolvedValue({
+      native: '1.0.1',
+      bundle: { id: 'builtin', version: 'builtin', downloaded: '', checksum: '', status: 'success' }
+    });
   });
 
   function createPage(): HTMLElement {
@@ -147,6 +163,56 @@ describe('renderSettingsPage', () => {
     expect(page.innerHTML).toContain('Theme');
     expect(page.innerHTML).toContain('Theme Color');
     expect(page.innerHTML).toContain('Animation');
+  });
+
+  it('shows the web release version without calling native plugins in a browser', () => {
+    const page = createPage();
+    renderSettingsPage();
+    expect(page.querySelector('.version-info')?.textContent).toBe(`Web ${version}`);
+    expect(App.getInfo).not.toHaveBeenCalled();
+    expect(CapacitorUpdater.current).not.toHaveBeenCalled();
+  });
+
+  it('shows the installed app version and the active OTA version separately', async () => {
+    isNativePlatform.mockReturnValue(true);
+    vi.mocked(CapacitorUpdater.current).mockResolvedValue({
+      native: '1.0.1',
+      bundle: { id: 'active', version: '1.0.3', downloaded: '', checksum: '', status: 'success' }
+    });
+    const page = createPage();
+    renderSettingsPage();
+    await vi.waitFor(() => {
+      expect(page.querySelector('.version-info')?.textContent).toBe('App 1.0.1 (build 12) · OTA 1.0.3');
+    });
+  });
+
+  it('identifies the bundled app when no OTA is active', async () => {
+    isNativePlatform.mockReturnValue(true);
+    const page = createPage();
+    renderSettingsPage();
+    await vi.waitFor(() => {
+      expect(page.querySelector('.version-info')?.textContent).toBe('App 1.0.1 (build 12) · OTA none (bundled)');
+    });
+  });
+
+  it('preserves the native version when the OTA lookup fails', async () => {
+    isNativePlatform.mockReturnValue(true);
+    vi.mocked(CapacitorUpdater.current).mockRejectedValue(new Error('Unavailable'));
+    const page = createPage();
+    renderSettingsPage();
+    await vi.waitFor(() => {
+      expect(page.querySelector('.version-info')?.textContent).toBe('App 1.0.1 (build 12) · OTA unavailable');
+    });
+  });
+
+  it('does not substitute the web version when the native app lookup fails', async () => {
+    isNativePlatform.mockReturnValue(true);
+    vi.mocked(App.getInfo).mockRejectedValue(new Error('Unavailable'));
+    const page = createPage();
+    renderSettingsPage();
+    await vi.waitFor(() => {
+      expect(page.querySelector('.version-info')?.textContent).toBe('App unavailable · OTA none (bundled)');
+    });
   });
 
   it('reflects pre-seeded non-default store values', () => {

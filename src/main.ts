@@ -346,7 +346,7 @@ function initHomePage(): void {
 
 // Initialize the application
 function init(): void {
-  console.log('Initializing Hacker News Reader v' + config.v.app);
+  console.log('Initializing Hacker News Reader v' + config.version);
 
   // A route change replaces the global home-list loader with page-local loading
   // states, so an aborted list request can never leave a spinner over a detail page.

@@ -1,15 +1,12 @@
 // Application configuration
 import { store } from './utils/storage';
+import { version } from '../package.json';
 
 export interface AppConfig {
   url: {
     stories: string;
   };
-  v: {
-    js: number;
-    css: number;
-    app: number;
-  };
+  version: string;
   hnid: string | null;
 }
 
@@ -29,11 +26,8 @@ export const config: AppConfig = {
   url: {
     stories: 'https://hacker-news.firebaseio.com/v0'
   },
-  v: {
-    js: 0.2,
-    css: 0.05,
-    app: 2
-  },
+  // Embedded at build time, matching the release and OTA bundle version.
+  version,
   hnid
 };
 

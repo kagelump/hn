@@ -3,7 +3,7 @@ import { Capacitor } from '@capacitor/core';
 import { showPage } from './router';
 import { PubSub } from '../utils/pubsub';
 import { store } from '../utils/storage';
-import { config } from '../config';
+import { renderVersionInfo } from './versionInfo';
 import { escapeHtml } from '../utils/template';
 import { getBlockedUsers, unblockUser } from './moderation';
 
@@ -220,12 +220,15 @@ export function renderSettingsPage(): void {
         </div>
 
         <div class="settings-version">
-          <p>Version ${config.v.app}-${config.v.js}-${config.v.css}</p>
+          <p class="version-info"></p>
 	          <p><a href="#/about">About HN Reader</a></p>
         </div>
       </div>
     </section>
   `;
+
+  const versionInfo = page.querySelector<HTMLElement>('.version-info');
+  if (versionInfo) void renderVersionInfo(versionInfo);
 
   // Font family radio buttons
   page.querySelectorAll('[data-font-family]').forEach(el => {

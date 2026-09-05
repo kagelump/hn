@@ -1,9 +1,9 @@
 {
   "schema": 1,
   "appId": "com.raycatdev.hn",
-  "version": "1.0.3",
+  "version": "1.0.4",
   "minimumNativeVersion": "1.0.1",
-  "url": "https://github.com/kagelump/hn/releases/download/ota-1.0.3/hn-reader-1.0.3.zip",
-  "checksum": "75154b1fa40d51c94cf69a1ea3da1aa7b5b1fd4e59fcf021ecba5f21c913b6d7",
-  "publishedAt": "2026-08-27T12:03:44.535Z"
+  "url": "https://github.com/kagelump/hn/releases/download/ota-1.0.4/hn-reader-1.0.4.zip",
+  "checksum": "bab6891c4aa38546049fe14e02e0951b9ae33f6a7664d7748b96f0eb369d54d2",
+  "publishedAt": "2026-09-05T03:53:38.210Z"
 }

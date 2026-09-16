@@ -2,8 +2,7 @@ import { describe, it, expect } from 'vitest';
 import {
   shortenTimeAgo,
   countChildren,
-  getCommentsHtml,
-  buildCommentsShareText
+  getCommentsHtml
 } from '../comments';
 import type { HNComment } from '../../types';
 
@@ -105,19 +104,5 @@ describe('getCommentsHtml', () => {
     const html = getCommentsHtml([comment({ id: 1, user: '<script>x</script>' })]);
     expect(html).not.toContain('<script>x</script>');
     expect(html).toContain('&lt;script&gt;');
-  });
-});
-
-describe('buildCommentsShareText', () => {
-  it('includes the HN item link when an articleId is given', () => {
-    const text = buildCommentsShareText('My Title', ['first', 'second'], '12345');
-    expect(text).toBe(
-      'Summarize the following discussion:\n\nMy Title\nhttps://news.ycombinator.com/item?id=12345\n\nfirst\n\nsecond'
-    );
-  });
-
-  it('leaves the link line empty when articleId is undefined', () => {
-    const text = buildCommentsShareText('My Title', ['only'], undefined);
-    expect(text).toBe('Summarize the following discussion:\n\nMy Title\n\n\nonly');
   });
 });

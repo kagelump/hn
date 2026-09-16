@@ -9,6 +9,7 @@ import {
 } from './router';
 import { PubSub } from '../utils/pubsub';
 import { escapeHtml } from '../utils/template';
+import { shareDiscussion } from './discussion-export';
 import { filterBlockedComments, showModerationSheet, BLOCKED_PLACEHOLDER } from './moderation';
 import type { HNComment, HNItem } from '../types';
 
@@ -74,12 +75,6 @@ export function getCommentsHtml(comments: HNComment[], lastReadComment?: number)
       </li>
     `;
   }).join('');
-}
-
-export function buildCommentsShareText(title: string, comments: string[], articleId: string | undefined): string {
-  const body = comments.join('\n\n');
-  const hnLink = articleId ? `https://news.ycombinator.com/item?id=${articleId}` : '';
-  return `Summarize the following discussion:\n\n${title}\n${hnLink}\n\n${body}`;
 }
 
 function getHeaderHtml(): string {
@@ -244,19 +239,9 @@ export function initCommentsPage(): void {
       // Handle AI summarize button
       if (target.closest('.share-btn')) {
         event.preventDefault();
-        const titleEl = page.querySelector('.article-header h2');
-        const title = titleEl?.textContent?.trim() || '';
-        const commentEls = page.querySelectorAll('.comments-list .comment-content');
-        const comments = Array.from(commentEls).map(el => (el.textContent || '').trim()).filter(Boolean);
-        const articleId = page.dataset.articleId;
-        const text = buildCommentsShareText(title, comments, articleId);
-        if (navigator.share) {
-          navigator.share({ title, text }).catch(() => {});
-        } else {
-          navigator.clipboard.writeText(text).then(() => {
-            alert('Discussion copied to clipboard.');
-          }).catch(() => {});
-        }
+        const article = data.getArticleById(Number(page.dataset.articleId));
+        if (article?.comments) shareDiscussion(article);
+        else alert('Please wait for the discussion to finish loading.');
         return;
       }
 

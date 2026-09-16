@@ -12,6 +12,7 @@ import {
 import { PubSub } from '../utils/pubsub';
 import { store } from '../utils/storage';
 import { escapeHtml } from '../utils/template';
+import { shareTextFile } from '../utils/share';
 import type { HNItem } from '../types';
 
 const DEFAULT_CORS_PROXY = 'https://api.allorigins.win/raw?url=';
@@ -26,11 +27,12 @@ export function buildArticleShareText(title: string, url: string, hnLink: string
     : `Summarize the following article:\n\n${title}\n${hnLink}\n\n${bodyText}`;
 }
 
-async function fetchArticleHtml(url: string): Promise<string> {
+export async function fetchArticleHtml(url: string, signal?: AbortSignal): Promise<string> {
   // On native platforms, use CapacitorHttp (no CORS needed)
   if (Capacitor.isNativePlatform()) {
     try {
-      const result = await CapacitorHttp.get({ url, responseType: 'text' });
+      const result = await CapacitorHttp.get({ url, responseType: 'text', connectTimeout: 15_000, readTimeout: 15_000 });
+      if (result.status >= 400) throw new Error(`Failed to fetch article: ${result.status}`);
       const html = result.data as string;
       if (html) {
         return html;
@@ -43,7 +45,7 @@ async function fetchArticleHtml(url: string): Promise<string> {
   // Web fallback: use CORS proxy
   const proxy = getCorsProxyUrl();
   const proxyUrl = proxy + encodeURIComponent(url);
-  const response = await fetch(proxyUrl);
+  const response = await fetch(proxyUrl, { signal });
   if (!response.ok) {
     throw new Error(`Failed to fetch article: ${response.status}`);
   }
@@ -129,25 +131,7 @@ async function shareArticle(): Promise<void> {
 
   const shareText = buildArticleShareText(title, url, hnLink, bodyText);
 
-  if (navigator.share) {
-    try {
-      await navigator.share({
-        title,
-        text: shareText,
-        url: url || undefined
-      });
-    } catch (err) {
-      // Share cancelled or failed
-    }
-  } else {
-    // Fallback: copy full content to clipboard
-    try {
-      await navigator.clipboard.writeText(shareText);
-      alert('Article content copied to clipboard.');
-    } catch (clipErr) {
-      // Clipboard write failed
-    }
-  }
+  await shareTextFile(title, shareText, 'article');
 }
 
 function getArticleStatusHtml(content: string): string {
